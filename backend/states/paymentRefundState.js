@@ -16,7 +16,7 @@ export const paymentRefundState = async (transactionId, amount, reason, config) 
   const gatewayName = transaction.gateway;
   const gatewayPaymentId = transaction.gatewayPaymentId;
 
-  // Load payment adapter
+  //select gateway
   const { ok, adapter } = gatewayFactory(gatewayName);
 
   if (!ok || !adapter) {

@@ -1,4 +1,4 @@
-// backend/controllers/payment.controller.js
+
 import asyncHandler from "express-async-handler";
 import ApiError from "../utils/apiError.js";
 
@@ -13,8 +13,7 @@ import Transaction from "../models/transaction.model.js";
 // INITIATE PAYMENT
 // ======================================================
 export const initiatePayment = asyncHandler(async (req, res) => {
-  console.log("🔍 Controller - Body:", JSON.stringify(req.body, null, 2));
-
+ 
   const { gateway, amount, currency, customer, meta } = req.body;
 
   if (!gateway || !amount || !customer?.email) {
@@ -27,21 +26,21 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   let redirectUrls;
 
   if (gateway.toLowerCase() === "payu") {
-    // PayU posts back to backend, then we redirect to frontend
+    
     redirectUrls = {
-      successUrl: `${backendBase}/api/payments/callback/payu`,
+      successUrl: `${backendBase}/api/payments/callback/payu`, 
       failureUrl: `${backendBase}/api/payments/callback/payu`,
       notifyUrl: `${backendBase}/api/payments/callback/payu`,
     };
   } else if (gateway.toLowerCase() === "cashfree") {
-    // Cashfree: user → frontend, webhook → backend
+    
     redirectUrls = {
       successUrl: `${frontendBase}/payments/success`,
       failureUrl: `${frontendBase}/payments/failure`,
       notifyUrl: `${backendBase}/api/payments/callback/cashfree`,
     };
   } else {
-    // Other gateways can mimic Cashfree pattern
+    
     redirectUrls = {
       successUrl: `${frontendBase}/payments/success`,
       failureUrl: `${frontendBase}/payments/failure`,
@@ -49,8 +48,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     };
   }
 
-  console.log("🔥 Using redirect URLs:", redirectUrls);
-
+  
   let gatewayConfig = {};
   if (gateway.toLowerCase() === "payu") {
     gatewayConfig = {
@@ -68,7 +66,6 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     };
   }
 
-  console.log("🔍 Gateway config loaded:", gatewayConfig);
 
   const result = await paymentInitiateState({
     gateway,
@@ -100,16 +97,13 @@ export const initiatePayment = asyncHandler(async (req, res) => {
 // ======================================================
 // VERIFY PAYMENT (BACKEND CALLBACK / WEBHOOK)
 // ======================================================
+
+
 export const verifyPayment = asyncHandler(async (req, res) => {
   const gateway = req.params.gateway?.toLowerCase();
   if (!gateway) throw new ApiError(400, "Gateway missing in callback URL");
 
   const callbackPayload = req.body || req.query;
-
-  console.log("🔥 CALLBACK BODY:", req.body);
-  console.log("🔥 CALLBACK QUERY:", req.query);
-  console.log("🔥 CALLBACK HEADERS:", req.headers);
-  console.log("🔥 GATEWAY:", gateway);
 
   let verifyConfig = {};
   if (gateway === "payu") {
@@ -129,7 +123,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   const result = await paymentVerifyState(gateway, callbackPayload, verifyConfig);
 
-  console.log("🔴 Verify State Output:", result);
 
   await logGatewayResponse({
     gateway,
@@ -155,13 +148,14 @@ export const verifyPayment = asyncHandler(async (req, res) => {
       ? `${frontendBase}/payments/success?txnid=${txnid}`
       : `${frontendBase}/payments/failure?txnid=${txnid}`;
 
-  // PayU will follow this redirect. Cashfree will ignore it (webhook only), which is fine.
+  
   return res.redirect(redirectTo);
 });
 
 // ======================================================
 // REFUND PAYMENT
 // ======================================================
+
 export const refundPayment = asyncHandler(async (req, res) => {
   const { transactionId, amount, reason, config } = req.body;
 

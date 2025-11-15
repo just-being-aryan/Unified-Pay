@@ -32,10 +32,10 @@ export default function Payments() {
           phone: user?.phone || "9999999999",
         },
         redirect: {
-          // Frontend pages (used by Cashfree)
+          
           successUrl: `${FRONTEND_BASE}/payments/success`,
           failureUrl: `${FRONTEND_BASE}/payments/failure`,
-          // Backend webhook (used by Cashfree & PayU via controller)
+          
           notifyUrl: `${API_BASE}/api/payments/callback/${gateway}`,
         },
         meta: {
@@ -43,12 +43,11 @@ export default function Payments() {
         },
       };
 
-      console.log("📤 Sending Payload:", payload);
 
       const res = await api.post("/api/payments/initiate", payload);
       const response = res.data?.data || res.data;
 
-      // PAYU: POST auto-form
+      
       if (response?.method === "POST" && response?.actionUrl) {
         const form = document.createElement("form");
         form.method = "POST";
@@ -67,13 +66,13 @@ export default function Payments() {
         return;
       }
 
-      // Cashfree / other gateways: redirect URL
+      
       if (response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
       }
 
-      console.error("Unexpected Response:", JSON.stringify(response, null, 2));
+      
       alert("Unexpected response. Check console logs.");
     } catch (err) {
       console.error("Payment initiation failed:", err.response?.data || err);

@@ -15,7 +15,7 @@ for (const file of files) {
   const gatewayName = file.replace(".gateway.js", "").toLowerCase();
   const modulePath = path.join(gatewaysDir, file);
 
-  // Convert to file:// URL for Windows compatibility
+  
   const fileUrl = pathToFileURL(modulePath).href;
   const adapterModule = await import(fileUrl); 
 

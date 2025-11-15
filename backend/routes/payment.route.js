@@ -10,7 +10,7 @@ import { protect, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// INITIATE PAYMENT
+//payment initiate
 router.post('/initiate', protect, initiatePayment);
 
 // UNIVERSAL CALLBACK (PayU, Razorpay, Cashfree, etc.)
@@ -18,10 +18,10 @@ router.post('/callback/:gateway', verifyPayment);
 router.get('/callback/:gateway', verifyPayment);
 router.options('/callback/:gateway', (req, res) => res.sendStatus(200));
 
-// REFUND
+//refunds
 router.post('/refund', protect, isAdmin, refundPayment);
 
-// GET TRANSACTION (frontend success page uses this)
+//get transaction info for dashboard
 router.get('/transaction/:id', getTransaction);
 
 export default router;
