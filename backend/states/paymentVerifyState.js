@@ -3,39 +3,35 @@ import gatewayFactory from "../factory/gatewayFactory.js";
 import ApiError from "../utils/apiError.js";
 
 export const paymentVerifyState = async (gatewayName, callbackPayload, config) => {
-  // Load gateway adapter
   const { ok, adapter } = gatewayFactory(gatewayName);
-
   if (!ok || !adapter) {
     throw new ApiError(400, "Unsupported gateway");
   }
 
-  // Extract txn id from payload
-  const txnid = callbackPayload.txnid;
+  const extractedTxnId =
+    callbackPayload?.data?.link_id ||
+    callbackPayload?.txnid ||
+    callbackPayload?.order_id ||
+    callbackPayload?.orderId;
 
-  if (!txnid) {
-    throw new ApiError(400, "Missing txnid in callback payload");
+  if (!extractedTxnId) {
+    throw new ApiError(400, "Missing transaction reference");
   }
 
   const transaction = await Transaction.findOne({
-    $or: [
-      { gatewayOrderId: txnid },
-      { _id: txnid }
-    ]
+    gatewayOrderId: extractedTxnId
   });
 
   if (!transaction) {
     throw new ApiError(404, "Transaction not found");
   }
 
-  // Call adapter verification logic
   const result = await adapter.verifyPayment({
     callbackPayload,
     config,
   });
 
   if (!result.ok) {
-    // update failed
     transaction.status = "failed";
     transaction.callbackData = callbackPayload;
     await transaction.save();
@@ -47,12 +43,11 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
     };
   }
 
-  // Map unified status
   transaction.status = result.data.status;
   transaction.gatewayPaymentId = result.data.gatewayPaymentId;
   transaction.callbackData = callbackPayload;
 
-   if (result.data.status === "paid") {
+  if (result.data.status === "paid") {
     transaction.verifiedAt = new Date();
   }
 

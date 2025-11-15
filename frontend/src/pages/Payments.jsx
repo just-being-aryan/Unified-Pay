@@ -1,3 +1,4 @@
+// frontend/src/pages/Payments.jsx
 import { useState } from "react";
 import api from "@/api/axios";
 import { useAuth } from "@/context/useAuth";
@@ -11,6 +12,7 @@ export default function Payments() {
   const [loading, setLoading] = useState(false);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
+  const FRONTEND_BASE = window.location.origin;
 
   const handlePayment = async (e) => {
     e.preventDefault();
@@ -30,8 +32,11 @@ export default function Payments() {
           phone: user?.phone || "9999999999",
         },
         redirect: {
-          successUrl: `${API_BASE}/api/payments/callback/${gateway}`,
-          failureUrl: `${API_BASE}/api/payments/callback/${gateway}`,
+          // Frontend pages (used by Cashfree)
+          successUrl: `${FRONTEND_BASE}/payments/success`,
+          failureUrl: `${FRONTEND_BASE}/payments/failure`,
+          // Backend webhook (used by Cashfree & PayU via controller)
+          notifyUrl: `${API_BASE}/api/payments/callback/${gateway}`,
         },
         meta: {
           description: description || "Payment",
@@ -62,7 +67,7 @@ export default function Payments() {
         return;
       }
 
-      // Other gateways (if return redirectUrl)
+      // Cashfree / other gateways: redirect URL
       if (response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
@@ -84,7 +89,6 @@ export default function Payments() {
         <h2 className="text-2xl font-bold text-center mb-6">Initiate Payment</h2>
 
         <form onSubmit={handlePayment} className="space-y-5">
-
           <div>
             <label className="block text-sm mb-1">Amount (₹)</label>
             <input

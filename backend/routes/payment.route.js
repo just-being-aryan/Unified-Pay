@@ -15,6 +15,8 @@ router.post('/initiate', protect, initiatePayment);
 
 // UNIVERSAL CALLBACK (PayU, Razorpay, Cashfree, etc.)
 router.post('/callback/:gateway', verifyPayment);
+router.get('/callback/:gateway', verifyPayment);
+router.options('/callback/:gateway', (req, res) => res.sendStatus(200));
 
 // REFUND
 router.post('/refund', protect, isAdmin, refundPayment);

@@ -1,58 +1,97 @@
 import axios from "axios";
 
-const CF_BASE = process.env.CASHFREE_BASE_URL || "https://sandbox.cashfree.com/pg";
-
 export default {
-   initiatePayment: async (input) => {
+  initiatePayment: async (input) => {
     try {
-      const { amount, currency, transactionId, customer, redirect, meta, config } = input;
+      const {
+        amount,
+        currency = "INR",
+        transactionId,
+        customer = {},
+        redirect = {},
+        meta = {},
+        config = {},
+      } = input;
 
-      const url = `${config.baseUrl}/links`;
+      const { appId, secretKey, baseUrl } = config;
 
+      if (!appId || !secretKey || !baseUrl) {
+        return {
+          ok: false,
+          message: "Invalid Cashfree configuration",
+        };
+      }
+
+      // FORMAT AMOUNT
+      const formattedAmount = Number(amount);
+
+      // RETURN URL FOR FRONTEND REDIRECT
+      const returnUrl = `${redirect.successUrl}?txnid=${transactionId}`;
+
+      // ⭐ REQUIRED FIELD: link_purpose
       const payload = {
         link_id: transactionId,
-        link_amount: Number(amount),
+        link_amount: formattedAmount,
         link_currency: currency,
-        link_purpose: meta.description || "Payment",
-        link_expiry_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+
+        // Required field by Cashfree
+        link_purpose: meta.description || "Payment Processing",
+
         customer_details: {
-          customer_name: customer.name,
-          customer_email: customer.email,
-          customer_phone: customer.phone,
+          customer_name: customer.name || "",
+          customer_email: customer.email || "",
+          customer_phone: customer.phone || "",
         },
+
         link_meta: {
-          return_url: `${process.env.FRONTEND_URL}/payments/success?order_id=${transactionId}`,
-          notify_url: `${process.env.BACKEND_URL}/api/payments/verify/cashfree`,
+          return_url: returnUrl,
+          notify_url: redirect.notifyUrl, // webhook backend
         },
+
         link_notes: {
-          description: meta?.description || "",
+          description: meta.description || "",
+        },
+      };
+
+      console.log("🔥 Cashfree Payment Link Payload:", payload);
+
+      // CREATE PAYMENT LINK
+      const response = await axios.post(
+        `${baseUrl}/links`,
+        payload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": appId,
+            "x-client-secret": secretKey,
+            "x-api-version": "2023-08-01",
+          },
         }
-      };
+      );
 
-      const headers = {
-        "Content-Type": "application/json",
-        "x-api-version": "2022-09-01",
-        "x-client-id": config.appId,
-        "x-client-secret": config.secretKey,
-      };
-
-      const response = await axios.post(url, payload, { headers });
-
-      console.log("🔥 Cashfree Payment Link Response:", response.data);
+      const data = response.data;
+      console.log("🔥 Cashfree Create Link Response:", data);
 
       return {
         ok: true,
         message: "Cashfree initiatePayment success",
         data: {
           method: "GET",
-          redirectUrl: response.data.link_url, // 🔥 final checkout url
+          redirectUrl: data?.link_url, // Cashfree Payment URL
+          orderId: data?.link_id,
+          paymentSessionId: data?.cf_link_id,
         },
+        raw: data,
       };
     } catch (error) {
-      console.error("❌ Cashfree Error:", error.response?.data || error.message);
+      console.error(
+        "❌ Cashfree initiatePayment error:",
+        error.response?.data || error
+      );
       return {
         ok: false,
         message: "Cashfree initiatePayment failed",
+        statusCode: 500,
         raw: error.response?.data || error.message,
       };
     }
@@ -60,47 +99,120 @@ export default {
 
   verifyPayment: async (input) => {
     try {
-      const { callbackPayload, config } = input;
-      const { appId, secretKey } = config;
+      const { callbackPayload, config = {} } = input;
+      const { appId, secretKey, baseUrl } = config;
 
-      const orderId = callbackPayload.order_id;
-
-      if (!orderId) {
-        return { ok: false, message: "Missing order_id for verification" };
+      if (!appId || !secretKey || !baseUrl) {
+        return {
+          ok: false,
+          message: "Invalid Cashfree config in verifyPayment",
+        };
       }
 
-      const headers = {
-        "x-client-id": appId,
-        "x-client-secret": secretKey,
-      };
+      const linkId =
+        callbackPayload.link_id ||
+        callbackPayload.order_id ||
+        callbackPayload.orderId ||
+        callbackPayload?.data?.link_id;
 
-      const res = await axios.get(`${CF_BASE}/orders/${orderId}`, { headers });
-      const data = res.data;
+      if (!linkId) {
+        return {
+          ok: false,
+          message: "Missing link_id in callback",
+        };
+      }
 
-      let status = "processing";
-      if (data.order_status === "PAID") status = "paid";
-      else if (data.order_status === "FAILED") status = "failed";
+      // GET PAYMENT LINK STATUS
+      const response = await axios.get(
+        `${baseUrl}/links/${linkId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": appId,
+            "x-client-secret": secretKey,
+            "x-api-version": "2023-08-01",
+          },
+        }
+      );
+
+      const data = response.data;
+      console.log("🔥 Cashfree Link Status:", data);
+
+      let normalized = "processing";
+      if (data.link_status === "PAID") normalized = "paid";
+      else if (["EXPIRED", "CANCELLED", "FAILED"].includes(data.link_status))
+        normalized = "failed";
 
       return {
         ok: true,
-        message: "Cashfree verification success",
+        status: normalized,
         data: {
-          status,
-          gatewayOrderId: data.order_id,
-          gatewayPaymentId: data.cf_payment_id || "",
-          amount: data.order_amount,
+          status: normalized,
+          gatewayPaymentId: data.cf_link_id,
+          gatewayOrderId: data.link_id,
+          amount: data.link_amount,
         },
+        raw: data,
       };
-    } catch (err) {
+    } catch (error) {
+      console.error(
+        "❌ Cashfree verifyPayment error:",
+        error.response?.data || error
+      );
       return {
         ok: false,
+        status: "failed",
         message: "Cashfree verification error",
-        raw: err.response?.data || err.message,
+        raw: error.response?.data || error.message,
       };
     }
   },
 
   refundPayment: async (input) => {
-    return { ok: false, message: "Cashfree refund not implemented yet" };
+    try {
+      const { gatewayOrderId, amount, reason, config = {} } = input;
+      const { appId, secretKey, baseUrl } = config;
+
+      if (!gatewayOrderId)
+        return { ok: false, message: "gatewayOrderId is required" };
+
+      const refundPayload = {
+        refund_amount: Number(amount) || undefined,
+        refund_note: reason || "Refund",
+      };
+
+      const response = await axios.post(
+        `${baseUrl}/links/${gatewayOrderId}/refunds`,
+        refundPayload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "x-client-id": appId,
+            "x-client-secret": secretKey,
+            "x-api-version": "2023-08-01",
+          },
+        }
+      );
+
+      const data = response.data;
+
+      return {
+        ok: true,
+        message: "Cashfree refund processed",
+        data: {
+          status: data.refund_status === "SUCCESS" ? "refunded" : "processing",
+          refundId: data.cf_refund_id,
+          amount: data.refund_amount,
+        },
+        raw: data,
+      };
+    } catch (err) {
+      console.error("❌ Cashfree refund error:", err.response?.data || err);
+      return {
+        ok: false,
+        message: "Cashfree refundPayment error",
+        raw: err.response?.data || err.message,
+      };
+    }
   },
 };
