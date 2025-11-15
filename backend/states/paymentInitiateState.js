@@ -15,16 +15,6 @@ export const paymentInitiateState = async (input) => {
     config,
   } = input;
 
-  console.log("🔍 paymentInitiateState INPUT:", {
-    gateway,
-    amount,
-    currency,
-    customer,
-    redirect,
-    meta,
-    config,
-    userId,
-  });
 
   if (!gateway || !amount || !customer || !customer.email) {
     throw new ApiError(400, "Missing required payment fields");
@@ -34,7 +24,6 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(400, "userId is required for transaction creation");
   }
 
-  // For PayU, we require full customer info
   if (gateway.toLowerCase() === "payu") {
     if (!customer.name || !customer.email || !customer.phone) {
       throw new ApiError(
@@ -52,9 +41,6 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(400, "Unsupported gateway");
   }
 
-  console.log("✅ Gateway adapter loaded:", gateway);
-
-  // Always create NEW transaction
   const transaction = await Transaction.create({
     userId,
     gateway,
@@ -68,7 +54,6 @@ export const paymentInitiateState = async (input) => {
     initiatedAt: new Date(),
   });
 
-  console.log("✅ Transaction created:", transaction._id);
 
   const adapterInput = {
     amount,
@@ -91,14 +76,11 @@ export const paymentInitiateState = async (input) => {
     config: config || {},
   };
 
-  console.log("🔍 Adapter Input:", adapterInput);
 
   const result = await adapter.initiatePayment(adapterInput);
 
-  console.log("🔍 Gateway response:", result);
 
   if (!result.ok) {
-    console.error("❌ Gateway Error:", result);
 
     transaction.status = "failed";
     transaction.failureReason = result.message || "Gateway initiation failed";
@@ -115,16 +97,11 @@ export const paymentInitiateState = async (input) => {
   } else if (result.data?.params?.txnid) {
     transaction.gatewayOrderId = result.data.params.txnid;
   } else {
-    // Fallback: use our own transaction id
+    
     transaction.gatewayOrderId = transaction._id.toString();
   }
 
   await transaction.save();
-
-  console.log(
-    "✅ Payment initiated successfully with transaction ID:",
-    transaction._id
-  );
 
   return {
     success: true,

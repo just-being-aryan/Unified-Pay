@@ -33,7 +33,7 @@ export default {
 
       const formattedAmount = Number(amount).toFixed(2);
 
-      // Extract redirect URLs with better fallback handling
+      //payment success and failure URLS
       const surl = redirect.successUrl || redirect.success || "";
       const furl = redirect.failureUrl || redirect.failure || "";
 
@@ -101,11 +101,11 @@ export default {
         params.udf3,
         params.udf4,
         params.udf5,
-        "", // udf6 (unused)
-        "", // udf7
-        "", // udf8
-        "", // udf9
-        "", // udf10
+        "", 
+        "", 
+        "", 
+        "", 
+        "", 
         salt,
       ].join("|");
 
@@ -171,7 +171,7 @@ export default {
         };
       }
 
-      // Compose hash string as per PayU verification (salt|status|...|key)
+     
       const hashStringSuccess = [
         salt,
         status,

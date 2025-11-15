@@ -11,11 +11,11 @@ import asyncHandler from "express-async-handler";
 import Transaction from "../models/transaction.model.js";
 import ApiError from "../utils/apiError.js";
 
-//  1. Overall transaction stats
+
 export const getOverallStats = asyncHandler(async (req, res) => {
   const matchQuery = {};
 
-  // Admin sees all, normal user sees own data
+  //1 Admin sees all, normal user sees own data
   if (req.user.role !== "admin") {
     matchQuery.userId = req.user._id;
   }

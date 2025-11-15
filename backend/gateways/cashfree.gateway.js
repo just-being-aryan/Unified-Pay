@@ -22,19 +22,19 @@ export default {
         };
       }
 
-      // FORMAT AMOUNT
+      
       const formattedAmount = Number(amount);
 
-      // RETURN URL FOR FRONTEND REDIRECT
+      
       const returnUrl = `${redirect.successUrl}?txnid=${transactionId}`;
 
-      // ⭐ REQUIRED FIELD: link_purpose
+      
       const payload = {
         link_id: transactionId,
         link_amount: formattedAmount,
         link_currency: currency,
 
-        // Required field by Cashfree
+       
         link_purpose: meta.description || "Payment Processing",
 
         customer_details: {
@@ -45,7 +45,8 @@ export default {
 
         link_meta: {
           return_url: returnUrl,
-          notify_url: redirect.notifyUrl, // webhook backend
+          notify_url: redirect.notifyUrl, 
+          redirect_on_failure: `${redirect.failureUrl}?txnid=${transactionId}`,
         },
 
         link_notes: {
@@ -53,9 +54,9 @@ export default {
         },
       };
 
-      console.log("🔥 Cashfree Payment Link Payload:", payload);
+      console.log("Cashfree Payment Link Payload:", payload);
 
-      // CREATE PAYMENT LINK
+      
       const response = await axios.post(
         `${baseUrl}/links`,
         payload,
@@ -70,14 +71,14 @@ export default {
       );
 
       const data = response.data;
-      console.log("🔥 Cashfree Create Link Response:", data);
+      
 
       return {
         ok: true,
         message: "Cashfree initiatePayment success",
         data: {
           method: "GET",
-          redirectUrl: data?.link_url, // Cashfree Payment URL
+          redirectUrl: data?.link_url,//this is cashfree payment url
           orderId: data?.link_id,
           paymentSessionId: data?.cf_link_id,
         },
@@ -85,7 +86,7 @@ export default {
       };
     } catch (error) {
       console.error(
-        "❌ Cashfree initiatePayment error:",
+        " Cashfree initiatePayment error:",
         error.response?.data || error
       );
       return {
@@ -122,7 +123,7 @@ export default {
         };
       }
 
-      // GET PAYMENT LINK STATUS
+      
       const response = await axios.get(
         `${baseUrl}/links/${linkId}`,
         {
@@ -136,7 +137,7 @@ export default {
       );
 
       const data = response.data;
-      console.log("🔥 Cashfree Link Status:", data);
+      
 
       let normalized = "processing";
       if (data.link_status === "PAID") normalized = "paid";
@@ -156,7 +157,7 @@ export default {
       };
     } catch (error) {
       console.error(
-        "❌ Cashfree verifyPayment error:",
+        " Cashfree verifyPayment error:",
         error.response?.data || error
       );
       return {
@@ -207,7 +208,7 @@ export default {
         raw: data,
       };
     } catch (err) {
-      console.error("❌ Cashfree refund error:", err.response?.data || err);
+      console.error(" Cashfree refund error:", err.response?.data || err);
       return {
         ok: false,
         message: "Cashfree refundPayment error",
