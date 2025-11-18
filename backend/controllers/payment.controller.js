@@ -105,6 +105,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   const callbackPayload = req.body || req.query;
 
+    console.log("=== CALLBACK DEBUG ===");
+  console.log("Gateway:", gateway);
+  console.log("req.body:", JSON.stringify(req.body, null, 2));
+  console.log("req.query:", JSON.stringify(req.query, null, 2));
+  console.log("=====================");
+
   let verifyConfig = {};
   if (gateway === "payu") {
     verifyConfig = {

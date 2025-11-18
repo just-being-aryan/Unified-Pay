@@ -15,6 +15,8 @@ export default function Payments() {
   const FRONTEND_BASE = window.location.origin;
 
   const handlePayment = async (e) => {
+    console.log("Selected Gateway:", gateway);
+
     e.preventDefault();
 
     if (!amount) return alert("Please enter an amount");
@@ -32,10 +34,8 @@ export default function Payments() {
           phone: user?.phone || "9999999999",
         },
         redirect: {
-          
           successUrl: `${FRONTEND_BASE}/payments/success`,
           failureUrl: `${FRONTEND_BASE}/payments/failure`,
-          
           notifyUrl: `${API_BASE}/api/payments/callback/${gateway}`,
         },
         meta: {
@@ -43,11 +43,37 @@ export default function Payments() {
         },
       };
 
-
       const res = await api.post("/api/payments/initiate", payload);
       const response = res.data?.data || res.data;
 
-      
+      console.log("Payment Response:", response);
+
+      // Handle redirect_form method (Paytm v1 hosted checkout)
+      if (response?.paymentMethod === "redirect_form" && response?.redirectUrl && response?.formData) {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = response.redirectUrl;
+
+    Object.entries(response.formData).forEach(([key, value]) => {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+
+    document.body.appendChild(form);
+
+    // FIX: delay submit to escape React event loop
+    setTimeout(() => {
+      form.submit();
+    }, 10);
+
+    return;
+}
+
+
+      // Handle POST method (PayU)
       if (response?.method === "POST" && response?.actionUrl) {
         const form = document.createElement("form");
         form.method = "POST";
@@ -66,13 +92,14 @@ export default function Payments() {
         return;
       }
 
-      
+      // Handle direct redirect (Cashfree, etc.)
       if (response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
       }
 
-      
+      // Unexpected response
+      console.error("Unexpected response format:", response);
       alert("Unexpected response. Check console logs.");
     } catch (err) {
       console.error("Payment initiation failed:", err.response?.data || err);
@@ -118,6 +145,7 @@ export default function Payments() {
               className="w-full px-4 py-2 border rounded-lg"
             >
               <option value="payu">PayU</option>
+              <option value="paytm">Paytm</option>
               <option value="razorpay">Razorpay</option>
               <option value="cashfree">Cashfree</option>
             </select>
