@@ -9,9 +9,9 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
     throw new ApiError(400, "Unsupported gateway");
   }
 
-  // accept many possible keys sent back by gateways (Paytm uses ORDERID / TXNAMOUNT, others use txnid, token, etc.)
-  const extractedTxnId =
-    callbackPayload?.token || // PayPal returns ?token=ORDER_ID
+  // Extract possible transaction references
+  let extractedTxnId =
+    callbackPayload?.token ||
     callbackPayload?.data?.link_id ||
     callbackPayload?.ORDERID ||
     callbackPayload?.ORDER_ID ||
@@ -27,21 +27,30 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
 
   console.log("=== VERIFY STATE DEBUG ===");
   console.log("Gateway:", gatewayName);
-  console.log("Extracted TxnId:", extractedTxnId);
+  console.log("Extracted TxnId (initial):", extractedTxnId);
   console.log("Callback Payload:", JSON.stringify(callbackPayload, null, 2));
   console.log("==========================");
+
+  // -----------------------------------------------------------
+  // 🔥 RAZORPAY FIX: use order_id (which we stored receipt = transactionId)
+  // -----------------------------------------------------------
+  if (!extractedTxnId && callbackPayload?.razorpay_order_id) {
+    console.log("Applying Razorpay fallback: Using razorpay_order_id");
+    extractedTxnId = callbackPayload.razorpay_order_id;
+  }
 
   if (!extractedTxnId) {
     throw new ApiError(400, "Missing transaction reference");
   }
 
-  // Build search conditions and only try ObjectId when valid
+  // Build search conditions for Mongo
   const conditions = [
     { gatewayOrderId: extractedTxnId },
     { transactionId: extractedTxnId },
     { gatewayPaymentId: extractedTxnId },
   ];
 
+  // If it's a valid ObjectId, try matching _id
   if (mongoose.Types.ObjectId.isValid(extractedTxnId)) {
     conditions.push({ _id: new mongoose.Types.ObjectId(extractedTxnId) });
   }
@@ -52,7 +61,7 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
     throw new ApiError(404, "Transaction not found");
   }
 
-  // call gateway verify safely
+  // Call gateway verify
   let result;
   try {
     result = await adapter.verifyPayment({
@@ -66,19 +75,27 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
 
   if (!result || !result.ok) {
     console.error("Gateway verify failed:", result?.message || result);
-    // bubble a 502 so caller can see gateway-level failure
     throw new ApiError(502, result?.message || "Gateway verification failed");
   }
 
-  // persist normalized result
+  // Persist normalized result
   transaction.status = result.data.status;
-  if (result.data.gatewayPaymentId) transaction.gatewayPaymentId = result.data.gatewayPaymentId;
-  if (result.data.amount) transaction.amount = result.data.amount;
+
+  if (result.data.gatewayPaymentId)
+    transaction.gatewayPaymentId = result.data.gatewayPaymentId;
+
+  if (result.data.amount)
+    transaction.amount = result.data.amount;
+
+  // If adapter returns the REAL transactionId (PayPal, Razorpay)
+  if (result.data.transactionId) {
+    transaction.gatewayOrderId = result.data.transactionId;
+  }
+
   transaction.verifiedAt = new Date();
 
   await transaction.save();
 
-  // DEBUG: log saved transaction snapshot so we can see final status stored
   console.log("Transaction saved:", {
     id: transaction._id.toString(),
     status: transaction.status,
