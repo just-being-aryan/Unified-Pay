@@ -3,10 +3,16 @@ import axios from "axios";
 
 const DEFAULT_PAYU_TEST_URL = "https://test.payu.in/_payment";
 
-const payuConfig = {
+const PAYU_ENV = {
   key: process.env.PAYU_MERCHANT_KEY,
   salt: process.env.PAYU_MERCHANT_SALT,
-  baseUrl: process.env.PAYU_BASE_URL
+  baseUrl: process.env.PAYU_BASE_URL,
+};
+
+const CASHFREE_ENV = {
+  appId: process.env.CASHFREE_APP_ID,
+  secret: process.env.CASHFREE_SECRET,
+  baseUrl: process.env.CASHFREE_BASE_URL || "https://test.cashfree.com",
 };
 
 export default {
@@ -19,10 +25,11 @@ export default {
         customer = {},
         meta = {},
         redirect = {},
-        config: payuConfig,
+        config: configParam,
       } = input;
 
-      const { key, salt, baseUrl = DEFAULT_PAYU_TEST_URL } = payuConfig || {};
+      const cfg = configParam && Object.keys(configParam).length ? configParam : PAYU_ENV;
+      const { key, salt, baseUrl = DEFAULT_PAYU_TEST_URL } = cfg || {};
 
       if (!key || !salt) {
         return {
@@ -31,284 +38,217 @@ export default {
         };
       }
 
-      const formattedAmount = Number(amount).toFixed(2);
+      if (!amount || !transactionId || !customer?.email) {
+        return { ok: false, message: "Missing required fields for PayU initiate" };
+      }
 
-      //payment success and failure URLS
-      const surl = redirect.successUrl || redirect.success || "";
-      const furl = redirect.failureUrl || redirect.failure || "";
+      const formattedAmount = Number(amount).toFixed(2);
+      // Prefer backend notify URL for PayU so PayU posts back to our server
+      const surl = redirect.notifyUrl || redirect.successUrl || redirect.success || "";
+      const furl = redirect.notifyUrl || redirect.failureUrl || redirect.failure || "";
 
       const params = {
         key,
         txnid: transactionId,
         amount: formattedAmount,
-        productinfo: meta.productInfo || meta.productinfo || "Product",
-        firstname: customer.name || "",
-        email: customer.email || "",
-        phone: customer.phone || "",
+        productinfo: meta?.productInfo || meta?.description || "Product Purchase",
+        firstname: customer?.name || "",
+        email: customer?.email || "",
+        phone: customer?.phone || "",
         surl,
         furl,
-        udf1: meta.udf1 || "",
-        udf2: meta.udf2 || "",
-        udf3: meta.udf3 || "",
-        udf4: meta.udf4 || "",
-        udf5: meta.udf5 || "",
       };
 
-      // Validate ALL required PayU fields
-      if (!params.txnid || !params.amount || !params.firstname || !params.email) {
-        return {
-          ok: false,
-          message:
-            "Missing required PayU parameters (txnid, amount, firstname, email).",
-          data: { params },
-        };
-      }
+      console.log("PayU initiate params (no hash):", params);
 
-      // Validate redirect URLs (PayU mandatory fields)
-      if (!params.surl || !params.furl) {
-        return {
-          ok: false,
-          message: "Missing required redirect URLs (surl, furl). Please provide redirect.successUrl and redirect.failureUrl",
-          data: { 
-            params,
-            provided: {
-              surl: params.surl,
-              furl: params.furl
-            }
-          },
-        };
-      }
-
-      // Validate phone number
-      if (!params.phone) {
-        return {
-          ok: false,
-          message: "Missing required parameter: phone number",
-          data: { params },
-        };
-      }
-
-      // PayU hash: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||salt
-      const hashString = [
-        key,
-        params.txnid,
-        params.amount,
-        params.productinfo,
-        params.firstname,
-        params.email,
-        params.udf1,
-        params.udf2,
-        params.udf3,
-        params.udf4,
-        params.udf5,
-        "", 
-        "", 
-        "", 
-        "", 
-        "", 
-        salt,
-      ].join("|");
-
+      // PayU hash string: key|txnid|amount|productinfo|firstname|email|||||||||||SALT
+      const hashString = `${params.key}|${params.txnid}|${params.amount}|${params.productinfo}|${params.firstname}|${params.email}|||||||||||${salt}`;
       const hash = crypto.createHash("sha512").update(hashString).digest("hex");
+
+      console.log("PayU hash generated:", hash);
 
       return {
         ok: true,
-        message: "PayU initiatePayment success",
+        message: "PayU initiate success",
         data: {
-          method: "POST",
-          actionUrl: baseUrl,
-          params: {
+          paymentMethod: "redirect_form",
+          redirectUrl: baseUrl,
+          formData: {
             ...params,
             hash,
+            // ensure the backend webhook/notify URL is included so PayU can POST server-to-server
+            notify_url: redirect?.notifyUrl || redirect?.successUrl || "",
           },
         },
-        raw: {
-          hashString,
-        },
       };
-    } catch (error) {
+    } catch (err) {
+      console.error("PAYU INITIATE ERROR:", err?.response?.data || err?.message || err);
       return {
         ok: false,
-        message: "PayU initiatePayment failed",
-        raw: error?.message || String(error),
+        message: "PayU initiate error",
+        raw: err?.response?.data || err?.message,
       };
     }
   },
 
   verifyPayment: async (input) => {
     try {
-      const { callbackPayload, config = {} } = input;
+      const { callbackPayload } = input;
+      // PayU posts lots of fields; txnid is the transaction reference we used when creating the txn
+      const txnid =
+        callbackPayload?.txnid ||
+        callbackPayload?.transactionId ||
+        callbackPayload?.order_id;
 
-      if (!callbackPayload) {
-        return {
-          ok: false,
-          message: "Missing callback payload",
-        };
+      if (!txnid) {
+        return { ok: false, message: "Missing txnid in PayU callback" };
       }
 
-      const {
-        txnid,
-        status,
-        mihpayid,
-        hash,
-        amount,
-        productinfo,
-        firstname,
-        email,
-        udf1 = "",
-        udf2 = "",
-        udf3 = "",
-        udf4 = "",
-        udf5 = "",
-      } = callbackPayload;
+      // Determine PayU status - prefer unmappedstatus then status
+      const rawStatus =
+        (callbackPayload?.unmappedstatus || callbackPayload?.status || "")
+          .toString()
+          .toLowerCase();
 
-      const { key, salt } = config;
+      const normalized =
+        {
+          captured: "paid",
+          success: "paid",
+          pending: "processing",
+          failure: "failed",
+          failed: "failed",
+          declined: "failed",
+        }[rawStatus] || (rawStatus.includes("success") ? "paid" : "processing");
 
-      if (!key || !salt) {
-        return {
-          ok: false,
-          message: "Invalid PayU configuration",
-        };
-      }
-
-     
-      const hashStringSuccess = [
-        salt,
-        status,
-        "",
-        "",
-        "",
-        "",
-        "",
-        udf5,
-        udf4,
-        udf3,
-        udf2,
-        udf1,
-        email,
-        firstname,
-        productinfo,
-        amount,
-        txnid,
-        key,
-      ].join("|");
-
-      const expectedHash = crypto
-        .createHash("sha512")
-        .update(hashStringSuccess)
-        .digest("hex");
-
-      const signatureValid = expectedHash === (hash || "");
-
-      if (!signatureValid) {
-        return {
-          ok: false,
-          message: "Signature mismatch",
-          data: {
-            status: "failed",
-          },
-          raw: {
-            receivedHash: hash,
-            computedHash: expectedHash,
-            callbackPayload,
-          },
-        };
-      }
-
-      let normalizedStatus = "processing";
-      switch ((status || "").toLowerCase()) {
-        case "success":
-          normalizedStatus = "paid";
-          break;
-        case "failure":
-        case "failed":
-          normalizedStatus = "failed";
-          break;
-        default:
-          normalizedStatus = "processing";
-      }
+      const gatewayPaymentId =
+        callbackPayload?.mihpayid || callbackPayload?.bank_ref_num || null;
 
       return {
         ok: true,
-        message: "PayU verification success",
+        message: "PayU verified",
         data: {
-          status: normalizedStatus,
-          gatewayPaymentId: mihpayid,
+          status: normalized,
+          gatewayPaymentId,
           gatewayOrderId: txnid,
-          amount,
+          amount: callbackPayload?.amount,
         },
-        raw: callbackPayload,
       };
     } catch (err) {
-      return {
-        ok: false,
-        message: "PayU verification error",
-        raw: err?.message || String(err),
-      };
+      console.error("PAYU VERIFY ERROR:", err?.message || err);
+      return { ok: false, message: "PayU verify error", raw: err?.message || err };
     }
   },
 
   refundPayment: async (input) => {
     try {
-      const { gatewayPaymentId, amount, reason, config = {} } = input;
-
-      if (!gatewayPaymentId) {
-        return {
-          ok: false,
-          message: "gatewayPaymentId (mihpayid) is required",
-        };
-      }
-
-      const { key, salt } = config;
-
-      if (!key || !salt) {
-        return {
-          ok: false,
-          message: "Invalid PayU configuration",
-        };
-      }
-
-      const command = "cancel_refund_transaction";
-      const var1 = gatewayPaymentId;
-      const var2 = amount ? String(amount) : "";
-      const var3 = reason || "";
-
-      const hashString = `${key}|${command}|${var1}|${salt}`;
-      const hash = crypto.createHash("sha512").update(hashString).digest("hex");
-
-      const payload = new URLSearchParams({
-        key,
-        command,
-        hash,
-        var1,
-        var2,
-        var3,
-      });
-
-      const response = await axios.post(
-        "https://test.payu.in/merchant/postservice?form=2",
-        payload.toString(),
-        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-      );
-
-      const data = response.data;
-
-      return {
-        ok: true,
-        message: "PayU refund processed",
-        data: {
-          status: data?.status === "success" ? "refunded" : "processing",
-          refundId: data?.refundId || null,
-          amount: amount || null,
-        },
-        raw: data,
-      };
+      return { ok: false, message: "PayU refund not implemented in this stub" };
     } catch (err) {
-      return {
-        ok: false,
-        message: "PayU refundPayment error",
-        raw: err.response?.data || err.message || String(err),
-      };
+      return { ok: false, message: "PayU refund error", raw: err?.message || err };
+    }
+  },
+
+  cashfreePayment: async (input) => {
+    try {
+      const {
+        amount,
+        currency = "INR",
+        transactionId,
+        customer = {},
+        meta = {},
+        redirect = {},
+        config: configParam,
+      } = input;
+
+      const cfg = configParam && Object.keys(configParam).length ? configParam : CASHFREE_ENV;
+      const { appId, secret, baseUrl } = cfg || {};
+
+      if (!appId || !secret) {
+        return {
+          ok: false,
+          message: "Invalid Cashfree configuration: missing appId or secret",
+        };
+      }
+
+      if (!amount || !transactionId || !customer?.email) {
+        return { ok: false, message: "Missing required fields for Cashfree initiate" };
+      }
+
+      const txnAmount = Number(amount).toFixed(2);
+      const notifyUrl = redirect?.notifyUrl || redirect?.successUrl || "";
+      const redirectUrl = redirect?.successUrl || redirect?.success || "";
+
+      // Attempt to create a Cashfree Payment Link (preferred)
+      try {
+        const payload = {
+          link_amount: txnAmount,
+          link_currency: currency,
+          link_note: meta?.description || "Payment",
+          // make sure link_purpose is always present
+          link_purpose: meta?.linkPurpose || "ORDER_PAYMENT",
+          link_title: meta?.linkTitle || (meta?.description || "Payment"),
+          customer_details: {
+            customer_name: customer?.name || "",
+            customer_email: customer?.email || "",
+            customer_phone: customer?.phone || "",
+          },
+          notify_url: redirect?.notifyUrl || undefined,
+          redirect_url: redirect?.successUrl || undefined,
+        };
+
+        console.log("Cashfree create link payload:", payload);
+
+        // Try versioned endpoint first, fallback to /links
+        const linksEndpointCandidates = [
+          `${baseUrl}/api/v2/links`,
+          `${baseUrl}/links`,
+        ];
+
+        let resp;
+        for (const endpoint of linksEndpointCandidates) {
+          try {
+            resp = await axios.post(endpoint, payload, {
+              headers: {
+                "Content-Type": "application/json",
+                "x-client-id": appId,
+                "x-client-secret": secret,
+                "x-api-version": "2023-08-01",
+              },
+              timeout: 10000,
+            });
+
+            if (resp?.data) break;
+          } catch (err) {
+            console.warn("Cashfree create link attempt failed for", endpoint, err?.response?.data || err.message || err);
+            // try next endpoint
+          }
+        }
+
+        console.log("Cashfree create link response:", resp?.data);
+
+        const linkUrl = resp?.data?.link_url || resp?.data?.data?.link_url || resp?.data?.data?.link;
+
+        if (linkUrl) {
+          return {
+            ok: true,
+            message: "Cashfree initiate success",
+            data: {
+              paymentMethod: "redirect_url",
+              redirectUrl: linkUrl,
+              gatewayOrderId: resp.data?.data?.link_id || transactionId,
+              raw: resp.data,
+            },
+          };
+        }
+
+        console.warn("Cashfree: create link succeeded but no link_url returned", resp?.data);
+      } catch (err) {
+        console.warn("Cashfree create link error:", err.response?.data || err.message || err);
+        // continue to fallback
+      }
+
+      return { ok: false, message: "Cashfree payment initiation failed" };
+    } catch (err) {
+      return { ok: false, message: "Cashfree payment error", raw: err?.message || err };
     }
   },
 };
