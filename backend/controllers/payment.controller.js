@@ -1,4 +1,3 @@
-
 import asyncHandler from "express-async-handler";
 import ApiError from "../utils/apiError.js";
 
@@ -13,149 +12,85 @@ import Transaction from "../models/transaction.model.js";
 // INITIATE PAYMENT
 // ======================================================
 export const initiatePayment = asyncHandler(async (req, res) => {
- 
-  const { gateway, amount, currency, customer, meta } = req.body;
+  try {
+    console.log("=== INITIATE PAYMENT REQUEST ===");
+    console.log("Headers:", JSON.stringify(req.headers || {}, null, 2));
+    console.log("Body:", JSON.stringify(req.body || {}, null, 2));
+    console.log("================================");
 
-  if (!gateway || !amount || !customer?.email) {
-    throw new ApiError(400, "Missing required payment fields");
+    const { gateway, amount, currency, customer, meta } = req.body;
+
+    // validate early to get clearer errors
+    if (!gateway || !amount || !customer?.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: gateway, amount or customer.email",
+      });
+    }
+
+    // call state
+    const result = await paymentInitiateState({
+      gateway,
+      amount,
+      currency,
+      customer,
+      redirect: {
+        successUrl: req.body?.redirect?.successUrl || `${process.env.FRONTEND_BASE}/success`,
+        failureUrl: req.body?.redirect?.failureUrl || `${process.env.FRONTEND_BASE}/failure`,
+        notifyUrl: req.body?.redirect?.notifyUrl,
+      },
+      meta: meta || {},
+      userId: req.user?.id || req.body.userId,
+      config: req.body.config || {},
+    });
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("INITIATE PAYMENT ERROR:", err?.response?.data || err?.message || err);
+    // include stack in dev only
+    const payload = {
+      success: false,
+      message: err.message || "Internal server error",
+    };
+    if (process.env.NODE_ENV !== "production") {
+      payload.raw = err?.response?.data || err;
+    }
+    return res.status(err.statusCode || 500).json(payload);
   }
-
-  const frontendBase = process.env.FRONTEND_URL;
-  const backendBase = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
-
-  let redirectUrls;
-
-  if (gateway.toLowerCase() === "payu") {
-    
-    redirectUrls = {
-      successUrl: `${backendBase}/api/payments/callback/payu`, 
-      failureUrl: `${backendBase}/api/payments/callback/payu`,
-      notifyUrl: `${backendBase}/api/payments/callback/payu`,
-    };
-  } else if (gateway.toLowerCase() === "cashfree") {
-    
-    redirectUrls = {
-      successUrl: `${frontendBase}/payments/success`,
-      failureUrl: `${frontendBase}/payments/failure`,
-      notifyUrl: `${backendBase}/api/payments/callback/cashfree`,
-    };
-  } else {
-    
-    redirectUrls = {
-      successUrl: `${frontendBase}/payments/success`,
-      failureUrl: `${frontendBase}/payments/failure`,
-      notifyUrl: `${backendBase}/api/payments/callback/${gateway}`,
-    };
-  }
-
-  
-  let gatewayConfig = {};
-  if (gateway.toLowerCase() === "payu") {
-    gatewayConfig = {
-      key: process.env.PAYU_MERCHANT_KEY,
-      salt: process.env.PAYU_MERCHANT_SALT,
-      baseUrl: process.env.PAYU_BASE_URL,
-    };
-  }
-
-  if (gateway.toLowerCase() === "cashfree") {
-    gatewayConfig = {
-      appId: process.env.CASHFREE_APP_ID,
-      secretKey: process.env.CASHFREE_SECRET_KEY,
-      baseUrl: process.env.CASHFREE_BASE_URL,
-    };
-  }
-
-
-  const result = await paymentInitiateState({
-    gateway,
-    amount,
-    currency,
-    customer,
-    redirect: redirectUrls,
-    meta,
-    config: gatewayConfig,
-    userId: req.user._id,
-  });
-
-  await logGatewayResponse({
-    gateway,
-    type: "initiation",
-    requestPayload: { amount, currency, customer, redirect: redirectUrls, meta },
-    responsePayload: result,
-    statusCode: 200,
-    message: `Payment initiation completed for ${gateway}`,
-  });
-
-  return res.status(200).json({
-    success: true,
-    message: "Payment Initiated Successfully",
-    data: result,
-  });
 });
 
 // ======================================================
 // VERIFY PAYMENT (BACKEND CALLBACK / WEBHOOK)
 // ======================================================
-
-
 export const verifyPayment = asyncHandler(async (req, res) => {
-  const gateway = req.params.gateway?.toLowerCase();
-  if (!gateway) throw new ApiError(400, "Gateway missing in callback URL");
-
-  const callbackPayload = req.body || req.query;
+  try {
+    const gateway = req.params.gateway;
+    const callbackPayload = { ...(req.body || {}), ...(req.query || {}) };
 
     console.log("=== CALLBACK DEBUG ===");
-  console.log("Gateway:", gateway);
-  console.log("req.body:", JSON.stringify(req.body, null, 2));
-  console.log("req.query:", JSON.stringify(req.query, null, 2));
-  console.log("=====================");
+    console.log("Gateway:", gateway);
+    console.log("req.body:", req.body);
+    console.log("req.query:", req.query);
+    console.log("=====================");
 
-  let verifyConfig = {};
-  if (gateway === "payu") {
-    verifyConfig = {
-      key: process.env.PAYU_MERCHANT_KEY,
-      salt: process.env.PAYU_MERCHANT_SALT,
-    };
+    const result = await paymentVerifyState(gateway, callbackPayload, {});
+
+    // Redirect user to frontend page with txn id and status
+    const frontendSuccess = process.env.FRONTEND_BASE || "http://localhost:5173";
+    const successUrl = `${frontendSuccess}/payments/success?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
+    const failureUrl = `${frontendSuccess}/payments/failure?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
+
+    if (result.data.status === "paid" || result.data.status === "completed") {
+      return res.redirect(successUrl);
+    } else {
+      return res.redirect(failureUrl);
+    }
+  } catch (err) {
+    console.error("VERIFY PAYMENT ERROR:", err);
+    // Notify gateway (some gateways expect 200) but redirect user to frontend failure
+    const frontendBase = process.env.FRONTEND_BASE || "http://localhost:5173";
+    return res.redirect(`${frontendBase}/payments/failure`);
   }
-
-  if (gateway === "cashfree") {
-    verifyConfig = {
-      appId: process.env.CASHFREE_APP_ID,
-      secretKey: process.env.CASHFREE_SECRET_KEY,
-      baseUrl: process.env.CASHFREE_BASE_URL,
-    };
-  }
-
-  const result = await paymentVerifyState(gateway, callbackPayload, verifyConfig);
-
-
-  await logGatewayResponse({
-    gateway,
-    type: "verification",
-    requestPayload: callbackPayload,
-    responsePayload: result,
-    statusCode: 200,
-    message: `Verification processed for ${gateway}`,
-  });
-
-  const frontendBase = process.env.FRONTEND_URL;
-
-  const txnid =
-    callbackPayload.txnid ||
-    callbackPayload.order_id ||
-    callbackPayload.orderId ||
-    callbackPayload.data?.link_id ||
-    callbackPayload.data?.order?.order_id ||
-    result.transactionId;
-
-  const redirectTo =
-    result.status === "paid"
-      ? `${frontendBase}/payments/success?txnid=${txnid}`
-      : `${frontendBase}/payments/failure?txnid=${txnid}`;
-
-  
-  return res.redirect(redirectTo);
 });
 
 // ======================================================

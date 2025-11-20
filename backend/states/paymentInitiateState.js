@@ -15,7 +15,12 @@ export const paymentInitiateState = async (input) => {
     config,
   } = input;
 
-
+  // Ensure PayPal uses a supported currency
+  let txCurrency = currency;
+  if (gateway?.toLowerCase() === "paypal") {
+    txCurrency = "USD";
+  }
+  
   if (!gateway || !amount || !customer || !customer.email) {
     throw new ApiError(400, "Missing required payment fields");
   }
@@ -45,7 +50,7 @@ export const paymentInitiateState = async (input) => {
     userId,
     gateway,
     amount,
-    currency,
+    currency: txCurrency,
     status: "pending",
     customerEmail: customer.email,
     customerPhone: customer.phone || null,
@@ -54,10 +59,9 @@ export const paymentInitiateState = async (input) => {
     initiatedAt: new Date(),
   });
 
-
   const adapterInput = {
     amount,
-    currency,
+    currency: txCurrency,
     transactionId: transaction._id.toString(),
     customer: {
       name: customer.name || "",
@@ -76,12 +80,9 @@ export const paymentInitiateState = async (input) => {
     config: config || {},
   };
 
-
   const result = await adapter.initiatePayment(adapterInput);
 
-
   if (!result.ok) {
-
     transaction.status = "failed";
     transaction.failureReason = result.message || "Gateway initiation failed";
     await transaction.save();
@@ -97,16 +98,19 @@ export const paymentInitiateState = async (input) => {
   } else if (result.data?.params?.txnid) {
     transaction.gatewayOrderId = result.data.params.txnid;
   } else {
-    
     transaction.gatewayOrderId = transaction._id.toString();
   }
 
   await transaction.save();
 
+  // FIXED: Keep data nested properly
   return {
+    ok: true,  // Add 'ok' for consistency
     success: true,
     message: "Payment initiation successful",
-    transactionId: transaction._id,
-    ...result.data,
+    data: {
+      transactionId: transaction._id,
+      ...result.data,  // Now properly nested under 'data'
+    }
   };
 };

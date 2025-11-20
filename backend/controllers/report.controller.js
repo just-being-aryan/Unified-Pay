@@ -1,25 +1,24 @@
-/*
-    Endpoint	                             Purpose                                             Used in Frontend
-/api/reports/stats	                        KSPIs (cards)	            “Total Payments”, “Total Volume”, “Success/Fail Counts”
-/api/reports/gateway-summary	        Per-gateway analytics	                          “Gateway-wise chart”
-/api/reports/revenue-trend	                30-day graph	                           “Revenue trend line chart”
-
-*/
-
+// controllers/report.controller.js
 
 import asyncHandler from "express-async-handler";
 import Transaction from "../models/transaction.model.js";
-import ApiError from "../utils/apiError.js";
 
+/* 
+  STATUS REFERENCE:
+  - paid → money received
+  - failed → no money received
+  - refunded → money returned (subtract from total)
+*/
 
+/* ---------------------------------------------
+   1. OVERALL STATS
+---------------------------------------------- */
 export const getOverallStats = asyncHandler(async (req, res) => {
   const matchQuery = {};
 
-  //1 Admin sees all, normal user sees own data
   if (req.user.role !== "admin") {
     matchQuery.userId = req.user._id;
   }
-
 
   const stats = await Transaction.aggregate([
     { $match: matchQuery },
@@ -27,29 +26,45 @@ export const getOverallStats = asyncHandler(async (req, res) => {
       $group: {
         _id: "$status",
         count: { $sum: 1 },
-        totalAmount: { $sum: "$amount" },
-      },
-    },
+        totalAmount: { $sum: "$amount" }
+      }
+    }
   ]);
 
+  // Total payments (all)
+  const totalPayments = stats.reduce((sum, s) => sum + s.count, 0);
+
+  // Correct revenue calculation:
+  const paidAmount =
+    stats.find((s) => s._id === "paid")?.totalAmount || 0;
+
+  const refundedAmount =
+    stats.find((s) => s._id === "refunded")?.totalAmount || 0;
+
+  const netAmount = paidAmount - refundedAmount; // subtract refunds
+
   const formatted = {
-    totalPayments: stats.reduce((a, b) => a + b.count, 0),
-    totalAmount: stats.reduce((a, b) => a + b.totalAmount, 0),
+    totalPayments,
+    totalAmount: netAmount,
     byStatus: stats.reduce((acc, cur) => {
-      acc[cur._id] = { count: cur.count, amount: cur.totalAmount };
+      acc[cur._id] = {
+        count: cur.count,
+        amount: cur.totalAmount
+      };
       return acc;
-    }, {}),
+    }, {})
   };
 
   res.status(200).json({
     success: true,
-    message: "Overall transaction stats fetched",
-    data: formatted,
+    message: "Overall stats fetched successfully",
+    data: formatted
   });
 });
 
-
-// 2. Gateway-wise summary
+/* ---------------------------------------------
+   2. GATEWAY SUMMARY
+---------------------------------------------- */
 export const getGatewaySummary = asyncHandler(async (req, res) => {
   const matchQuery = {};
 
@@ -62,34 +77,63 @@ export const getGatewaySummary = asyncHandler(async (req, res) => {
     {
       $group: {
         _id: "$gateway",
+
         totalTransactions: { $sum: 1 },
-        totalAmount: { $sum: "$amount" },
+
         successCount: {
-          $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] },
+          $sum: { $cond: [{ $eq: ["$status", "paid"] }, 1, 0] }
         },
         failedCount: {
-          $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] },
+          $sum: { $cond: [{ $eq: ["$status", "failed"] }, 1, 0] }
         },
         refundedCount: {
-          $sum: { $cond: [{ $eq: ["$status", "refunded"] }, 1, 0] },
+          $sum: { $cond: [{ $eq: ["$status", "refunded"] }, 1, 0] }
         },
-      },
+
+        totalPaidAmount: {
+          $sum: {
+            $cond: [
+              { $eq: ["$status", "paid"] },
+              "$amount",
+              0
+            ]
+          }
+        },
+        totalRefundAmount: {
+          $sum: {
+            $cond: [
+              { $eq: ["$status", "refunded"] },
+              "$amount",
+              0
+            ]
+          }
+        }
+      }
     },
+    {
+      $addFields: {
+        totalAmount: {
+          $subtract: ["$totalPaidAmount", "$totalRefundAmount"]
+        }
+      }
+    }
   ]);
 
   res.status(200).json({
     success: true,
     message: "Gateway summary fetched",
-    data: gatewayStats,
+    data: gatewayStats
   });
 });
 
-
-// 3. Revenue trend (last 30 days)
+/* ---------------------------------------------
+   3. REVENUE TREND (last 30 days, only net paid)
+---------------------------------------------- */
 export const getRevenueTrend = asyncHandler(async (req, res) => {
   const matchQuery = {
-    status: "paid",
-    createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    createdAt: {
+      $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    }
   };
 
   if (req.user.role !== "admin") {
@@ -101,18 +145,31 @@ export const getRevenueTrend = asyncHandler(async (req, res) => {
     {
       $group: {
         _id: {
-          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" }
         },
-        totalAmount: { $sum: "$amount" },
-        count: { $sum: 1 },
-      },
+        paidAmount: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "paid"] }, "$amount", 0]
+          }
+        },
+        refundAmount: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "refunded"] }, "$amount", 0]
+          }
+        }
+      }
     },
-    { $sort: { _id: 1 } },
+    {
+      $addFields: {
+        totalAmount: { $subtract: ["$paidAmount", "$refundAmount"] }
+      }
+    },
+    { $sort: { _id: 1 } }
   ]);
 
   res.status(200).json({
     success: true,
     message: "Revenue trend (last 30 days) fetched",
-    data: trend,
+    data: trend
   });
 });

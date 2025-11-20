@@ -50,50 +50,44 @@ export default {
         redirect.notifyUrl ||
         `${process.env.BACKEND_URL}/api/payments/callback/paytm`;
 
-      // FINAL CORRECT PARAMS (all strings)
+      // FINAL CORRECT PARAMS (use the keys Paytm expects during checkout)
       const paytmParams = {
         MID: String(MID),
         WEBSITE: String(WEBSITE),
         INDUSTRY_TYPE_ID: String(INDUSTRY),
         CHANNEL_ID: String(CHANNEL),
-        ORDERID: String(paytmOrderId),
+        ORDERID: String(paytmOrderId),       // use ORDERID (no underscore)
         CUST_ID: String(customer.email || "guest@example.com"),
-        TXNAMOUNT: String(Number(amount).toFixed(2)),
+        TXNAMOUNT: String(Number(amount).toFixed(2)), // use TXNAMOUNT (no underscore)
         CALLBACK_URL: String(callbackUrl),
       };
 
 
       console.log("=== PAYTM INITIATE DEBUG ===");
       console.log("All params:", paytmParams);
+      console.log("CALLBACK_URL (sent to Paytm):", paytmParams.CALLBACK_URL);
 
-      const CHECKSUMHASH = await PaytmChecksumLib.generateSignature(
-        paytmParams,
-        MKEY
-      );
-
-      console.log("CHECKSUMHASH:", CHECKSUMHASH);
-      // log final form data that will be posted to Paytm
-      console.log("Form data to post to Paytm:", { ...paytmParams, CHECKSUMHASH: CHECKSUMHASH });
+      // generate checksum
+      const CHECKSUMHASH = await PaytmChecksumLib.generateSignature(paytmParams, MKEY);
+      // final formData
+      const formData = { ...paytmParams, CHECKSUMHASH };
+      console.log("Form data to post to Paytm:", formData);
       console.log("===========================");
-      // Form data to POST to Paytm
+      // Form data to POST to Paytm is `formData` above
 
       
-      const formData = {
-        ...paytmParams,
-        CHECKSUMHASH: CHECKSUMHASH,
-      };
-
       return {
         ok: true,
         message: "Paytm initiate success",
         data: {
           paymentMethod: "redirect_form",
           // POST to INIT_URL (no query params). The frontend posts formData (MID, ORDERID, CHECKSUMHASH) to this URL.
-          redirectUrl: INIT_URL,
+          redirectUrl: `${INIT_URL}?mid=${MID}&orderId=${paytmOrderId}`,
           gatewayOrderId: paytmOrderId,
           formData: formData,
         },
-        raw: { paytmOrderId, checksum: CHECKSUMHASH },
+        // expose callback URL and formData to the frontend for debugging
+        raw: { paytmOrderId, checksum: CHECKSUMHASH, callbackUrl: paytmParams.CALLBACK_URL, formData },
       };
     } catch (err) {
       console.error("==== PAYTM INITIATE ERROR ====");
@@ -119,8 +113,9 @@ export default {
       console.log("Payload:", JSON.stringify(callbackPayload, null, 2));
 
       const orderId =
-        callbackPayload.ORDERID ||
         callbackPayload.ORDER_ID ||
+        callbackPayload.ORDERID ||
+        callbackPayload.ORDER_ID?.toString() ||
         callbackPayload.orderId;
 
       if (!orderId) {
