@@ -196,6 +196,7 @@ export default function Payments() {
               <option value="paytm">Paytm</option>
               <option value="paypal">PayPal</option>
               <option value="cashfree">Cashfree</option>
+              <option value="razorpay">Razorpay</option>
             </select>
           </div>
 
