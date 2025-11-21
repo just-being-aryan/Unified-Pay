@@ -8,6 +8,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentFailure from "./pages/PaymentFailure";
 import Dashboard from "./pages/Dashboard";
+import OauthHandler from "@/pages/OauthHandler";
+import OAuthCallback from "@/pages/OAuthCallback";
+
 
 function App() {
   return (
@@ -27,10 +30,11 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+          <Route path="/oauth" element={<OauthHandler />} />
           <Route path="/payments/success" element={<PaymentSuccess />} />
           <Route path="/payments/failure" element={<PaymentFailure />} />
-          
+          <Route path="/oauth" element={<OAuthCallback />} />
+
           <Route
             path="/dashboard"
             element={
