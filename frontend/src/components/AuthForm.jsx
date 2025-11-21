@@ -20,7 +20,8 @@ export default function AuthForm({ type, onSubmit }) {
   };
 
   return (
-    <div className="min-h-[80vh] flex flex-col justify-center items-center px-4">
+    <div className="w-full flex flex-col items-center px-4 mt-4">
+
       <div className="w-full max-w-md bg-white dark:bg-gray-900 shadow-lg rounded-2xl p-8">
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-100">
           {isLogin ? "Login to Your Account" : "Create an Account"}
