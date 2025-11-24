@@ -9,6 +9,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
+
 /* ----------------------------------------------------
    GOOGLE LOGIN
 ---------------------------------------------------- */
@@ -126,5 +127,78 @@ export const linkedinCallback = async (req, res) => {
   } catch (err) {
     console.error("LinkedIn OAuth Error:", err.message);
     return res.redirect(`${FRONTEND_URL}/login`);
+  }
+};
+
+// ======================================
+// FACEBOOK AUTH
+// ======================================
+export const facebookAuth = (req, res) => {
+  const params = {
+    client_id: process.env.FACEBOOK_APP_ID,
+    redirect_uri: process.env.FACEBOOK_REDIRECT_URI,
+    response_type: "code",
+    scope: "email,public_profile",
+  };
+
+  const url =
+    "https://www.facebook.com/v20.0/dialog/oauth?" + qs.stringify(params);
+
+  return res.redirect(url);
+};
+
+export const facebookCallback = async (req, res) => {
+  try {
+    const { code } = req.query;
+
+if (!code) return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
+
+    // 1. Exchange code → access token
+    const tokenURL = "https://graph.facebook.com/v20.0/oauth/access_token";
+
+    const tokenRes = await axios.get(tokenURL, {
+      params: {
+        client_id: process.env.FACEBOOK_APP_ID,
+        client_secret: process.env.FACEBOOK_APP_SECRET,
+        redirect_uri: process.env.FACEBOOK_REDIRECT_URI,
+        code,
+      },
+    });
+
+    const accessToken = tokenRes.data.access_token;
+    if (!accessToken) throw new Error("No FB access token");
+
+    // 2. Fetch user profile
+    const userRes = await axios.get(
+      "https://graph.facebook.com/me?fields=id,name,email",
+      {
+        params: { access_token: accessToken },
+      }
+    );
+
+    const { id, name, email } = userRes.data;
+
+    // 3. Find or create user
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        provider: "facebook",
+        providerId: id,
+        password: "facebook-oauth-no-password",
+      });
+    }
+
+    // 4. Generate JWT
+    const token = generateToken(user._id);
+
+    // 5. Redirect to frontend with JWT
+    return res.redirect(`${process.env.FRONTEND_URL}/oauth?token=${token}`);
+
+  } catch (err) {
+    console.error("FACEBOOK OAuth Error:", err.response?.data || err.message);
+    return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
   }
 };
