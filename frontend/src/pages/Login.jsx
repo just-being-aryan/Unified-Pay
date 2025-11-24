@@ -56,7 +56,19 @@ export default function Login() {
                   </svg>
                   Continue with Google
                 </a>
-
+              <a
+  href={`${import.meta.env.VITE_API_BASE_URL}/api/auth/facebook`}
+  className="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-md"
+>
+  <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="white">
+    <path d="M22.675 0h-21.35C.597 0 0 .597 0 1.326v21.348C0 23.403.597 24 1.326 
+    24h11.495v-9.294H9.691v-3.622h3.13V8.413c0-3.1 1.894-4.788 4.659-4.788 
+    1.325 0 2.464.099 2.796.143v3.24l-1.918.001c-1.504 
+    0-1.796.715-1.796 1.763v2.313h3.587l-.467 3.622h-3.12V24h6.116C23.403 24 
+    24 23.403 24 22.674V1.326C24 .597 23.403 0 22.675 0z"/>
+  </svg>
+  Continue with Facebook
+</a>
                 <a
                   href={`${import.meta.env.VITE_API_BASE_URL}/api/auth/linkedin`}
                   className="flex items-center justify-center w-full bg-blue-700 hover:bg-blue-800 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 hover:shadow-md"

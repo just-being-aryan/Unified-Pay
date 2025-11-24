@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
+import api from "@/api/axios";
 
 export default function OauthHandler() {
   const navigate = useNavigate();
@@ -10,20 +11,19 @@ export default function OauthHandler() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
 
-    if (!token) {
-      return navigate("/login");
-    }
+    if (!token) return navigate("/login");
 
-    // Save token and placeholder user (backend does not send profile)
-    login(token, {});
+    localStorage.setItem("token", token);
 
-    // redirect to home
-    navigate("/", { replace: true });
+    api.get("/api/users/profile")
+      .then((res) => {
+        login(token, res.data.user);
+        navigate("/payments", { replace: true });
+      })
+      .catch(() => navigate("/login"));
   }, []);
 
   return (
-    <p className="text-center mt-10 text-lg font-medium">
-      Signing you in...
-    </p>
+    <p className="text-center mt-10 text-lg font-medium">Logging you in...</p>
   );
 }
