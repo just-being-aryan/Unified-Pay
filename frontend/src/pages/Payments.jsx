@@ -1,5 +1,5 @@
 // frontend/src/pages/Payments.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "@/api/axios";
 import { useAuth } from "@/context/useAuth";
 
@@ -14,15 +14,30 @@ export default function Payments() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
   const FRONTEND_BASE = window.location.origin;
 
+  // Load Razorpay JS
+  useEffect(() => {
+    const existing = document.querySelector("#razorpay-sdk");
+    if (existing) return;
+
+    const script = document.createElement("script");
+    script.id = "razorpay-sdk";
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => console.log("Razorpay SDK Loaded");
+    script.onerror = () => console.error("Failed to load Razorpay SDK");
+    document.body.appendChild(script);
+  }, []);
+
   const handlePayment = async (e) => {
     e.preventDefault();
-
-    if (!amount) return alert("Please enter an amount");
+    if (!amount) return alert("Enter amount");
 
     try {
       setLoading(true);
 
-      const transactionId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const transactionId = `TXN_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       const payload = {
         gateway,
@@ -46,100 +61,94 @@ export default function Payments() {
         },
       };
 
-      console.log("🚀 Sending payment request:", payload);
+      console.log("Sending payment request:", payload);
 
       const res = await api.post("/api/payments/initiate", payload);
-      
-      console.log("📦 RAW AXIOS RESPONSE:");
-      console.log("Status:", res.status);
-      console.log("Headers:", res.headers);
-      console.log("Full res.data:", JSON.stringify(res.data, null, 2));
-
       const response = res.data?.data || res.data;
 
-      console.log("📊 EXTRACTED RESPONSE:");
-      console.log("Response:", JSON.stringify(response, null, 2));
-      console.log("Type of response:", typeof response);
-      console.log("Is Array?", Array.isArray(response));
-      console.log("Keys:", Object.keys(response));
+      console.log("Initiate response:", response);
 
-      // Check all possible locations for redirect data
-      console.log("🔍 SEARCHING FOR REDIRECT DATA:");
-      console.log("response.paymentMethod:", response?.paymentMethod);
-      console.log("response.redirectUrl:", response?.redirectUrl);
-      console.log("response.data?.paymentMethod:", response?.data?.paymentMethod);
-      console.log("response.data?.redirectUrl:", response?.data?.redirectUrl);
-      console.log("res.data.paymentMethod:", res.data?.paymentMethod);
-      console.log("res.data.redirectUrl:", res.data?.redirectUrl);
-      console.log("res.data.data?.paymentMethod:", res.data?.data?.paymentMethod);
-      console.log("res.data.data?.redirectUrl:", res.data?.data?.redirectUrl);
+      // ---------------------------
+      // RAZORPAY JS CHECKOUT (FIXED)
+      // ---------------------------
+      if (response.paymentMethod === "razorpay_js") {
+        if (!window.Razorpay) {
+          alert("Razorpay SDK did not load");
+          return;
+        }
 
-      // Handle redirect_form method
-      if (response?.paymentMethod === "redirect_form" && response?.redirectUrl && response?.formData) {
-        console.log("✅ REDIRECT_FORM METHOD");
+        const options = {
+          key: response.key,
+          amount: response.amount,
+          currency: response.currency,
+          name: "UnifiedPay",
+          order_id: response.orderId,
+
+          // ⭐ HANDLER MODE — NO CALLBACK_URL, NO REDIRECT
+          handler: function (resp) {
+  const verifyUrl =
+    `${API_BASE}/api/payments/callback/razorpay` +
+    `?razorpay_payment_id=${resp.razorpay_payment_id}` +
+    `&razorpay_order_id=${resp.razorpay_order_id}` +
+    `&razorpay_signature=${resp.razorpay_signature}` +
+    `&txnid=${response.transactionId}`;   // ⭐ ADD THIS ⭐
+
+  window.location.href = verifyUrl;
+},
+
+
+          prefill: response.prefill,
+
+          theme: {
+            color: "#3399cc",
+          },
+        };
+
+        console.log("Opening Razorpay with options:", options);
+
+        const razorpayInstance = new window.Razorpay(options);
+        razorpayInstance.open();
+        return;
+      }
+
+      // ---------------------------
+      // FORM REDIRECT (PayU, Paytm)
+      // ---------------------------
+      if (
+        response.paymentMethod === "redirect_form" &&
+        response.redirectUrl &&
+        response.formData
+      ) {
         const form = document.createElement("form");
         form.method = "POST";
         form.action = response.redirectUrl;
 
-        Object.entries(response.formData).forEach(([key, value]) => {
+        Object.entries(response.formData).forEach(([k, v]) => {
           const input = document.createElement("input");
           input.type = "hidden";
-          input.name = key;
-          input.value = value;
+          input.name = k;
+          input.value = v;
           form.appendChild(input);
         });
 
         document.body.appendChild(form);
-        setTimeout(() => form.submit(), 100);
+        form.submit();
         return;
       }
 
-      // Handle POST method (PayU)
-      if (response?.method === "POST" && response?.actionUrl) {
-        console.log("✅ POST METHOD");
-        const form = document.createElement("form");
-        form.method = "POST";
-        form.action = response.actionUrl;
-
-        Object.entries(response.params).forEach(([key, value]) => {
-          const input = document.createElement("input");
-          input.type = "hidden";
-          input.name = key;
-          input.value = value;
-          form.appendChild(input);
-        });
-
-        document.body.appendChild(form);
-        setTimeout(() => form.submit(), 100);
-        return;
-      }
-
-      // Handle direct redirect (Cashfree Payment Link)
-      if (response?.paymentMethod === "redirect_url" && response?.redirectUrl) {
-        console.log("✅ REDIRECT_URL METHOD DETECTED!");
-        console.log("Redirecting to:", response.redirectUrl);
-        
-        // Try immediate redirect
+      // ---------------------------
+      // DIRECT URL REDIRECT (Cashfree)
+      // ---------------------------
+      if (response.paymentMethod === "redirect_url" && response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
       }
 
-      // Also check if data is nested one level deeper
-      if (response?.data?.paymentMethod === "redirect_url" && response?.data?.redirectUrl) {
-        console.log("✅ REDIRECT_URL IN NESTED DATA!");
-        console.log("Redirecting to:", response.data.redirectUrl);
-        window.location.href = response.data.redirectUrl;
-        return;
-      }
+      console.error("Unexpected response:", response);
+      alert("Unexpected response");
 
-      // Unexpected response
-      console.error("❌ UNEXPECTED RESPONSE FORMAT");
-      console.error("Could not find paymentMethod or redirectUrl in expected locations");
-      console.error("Full response object:", response);
-      alert("Unexpected response format. Check console for details.");
     } catch (err) {
-      console.error("❌ PAYMENT ERROR:", err);
-      console.error("Error response:", err.response?.data);
+      console.error("Payment initiation error:", err);
       alert(err.response?.data?.message || "Payment failed");
     } finally {
       setLoading(false);
@@ -154,43 +163,35 @@ export default function Payments() {
         </h2>
 
         <form onSubmit={handlePayment} className="space-y-5">
+
           <div>
-            <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-              Amount (₹)
-            </label>
+            <label className="block text-sm mb-1">Amount (₹)</label>
             <input
               type="number"
-              step="0.01"
               min="1"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-              placeholder="Enter amount"
+              className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
 
           <div>
-            <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
-              Description
-            </label>
+            <label className="block text-sm mb-1">Description</label>
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Test Payment"
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
 
           <div>
-            <label className="block text-sm mb-2 text-gray-700 dark:text-gray-300">
-              Select Gateway
-            </label>
+            <label className="block text-sm mb-1">Select Gateway</label>
             <select
               value={gateway}
               onChange={(e) => setGateway(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              className="w-full px-4 py-2 border rounded-lg"
             >
               <option value="payu">PayU</option>
               <option value="paytm">Paytm</option>
@@ -203,17 +204,15 @@ export default function Payments() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium transition-colors"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg"
           >
             {loading ? "Processing..." : "Pay Now"}
           </button>
         </form>
 
         {user && (
-          <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              <strong>Paying as:</strong> {user.name || user.email}
-            </p>
+          <div className="mt-4 text-sm text-gray-600">
+            Paying as: {user.name || user.email}
           </div>
         )}
       </div>
