@@ -49,13 +49,15 @@ export default {
       const accessToken = await getPayPalAccessToken();
 
       const {
-        amount,
-        currency = "USD", // paymentInitiateState already forces PayPal -> USD
-        transactionId,
-        customer = {},
-        redirect = {},
-        meta = {},
-      } = input;
+      amount,
+      transactionId,
+      customer = {},
+      redirect = {},
+      meta = {},
+    } = input;
+
+// Force currency to USD because PayPal does not support INR
+const currency = "USD";
 
       if (!amount || !transactionId) {
         throw new Error("Missing amount or transactionId for PayPal initiate");

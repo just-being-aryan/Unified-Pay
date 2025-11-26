@@ -15,13 +15,7 @@ export const paymentInitiateState = async (input) => {
     config,
   } = input;
 
-  // Ensure PayPal uses a supported currency
-  let txCurrency = currency;
-  if (gateway?.toLowerCase() === "paypal") {
-    txCurrency = "USD";
-  }
-  
-  if (!gateway || !amount || !customer || !customer.email) {
+  if (!gateway || !amount || !customer?.email) {
     throw new ApiError(400, "Missing required payment fields");
   }
 
@@ -29,28 +23,15 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(400, "userId is required for transaction creation");
   }
 
-  if (gateway.toLowerCase() === "payu") {
-    if (!customer.name || !customer.email || !customer.phone) {
-      throw new ApiError(
-        400,
-        `Missing required customer details for PayU. ` +
-          `name: ${customer.name || "missing"}, ` +
-          `email: ${customer.email || "missing"}, ` +
-          `phone: ${customer.phone || "missing"}`
-      );
-    }
-  }
-
   const { ok, adapter } = gatewayFactory(gateway);
-  if (!ok || !adapter) {
-    throw new ApiError(400, "Unsupported gateway");
-  }
+  if (!ok) throw new ApiError(400, "Unsupported gateway");
 
+  // Create DB transaction
   const transaction = await Transaction.create({
     userId,
     gateway,
     amount,
-    currency: txCurrency,
+    currency,
     status: "pending",
     customerEmail: customer.email,
     customerPhone: customer.phone || null,
@@ -59,9 +40,10 @@ export const paymentInitiateState = async (input) => {
     initiatedAt: new Date(),
   });
 
+  // Prepare standardized adapter input
   const adapterInput = {
     amount,
-    currency: txCurrency,
+    currency,
     transactionId: transaction._id.toString(),
     customer: {
       name: customer.name || "",
@@ -73,44 +55,36 @@ export const paymentInitiateState = async (input) => {
       failureUrl: redirect?.failureUrl || "",
       notifyUrl: redirect?.notifyUrl || redirect?.successUrl || "",
     },
-    meta: {
-      productInfo: meta.description || meta.productInfo || "Product Purchase",
-      ...meta,
-    },
+    meta,
     config: config || {},
   };
 
+  // Adapter handles everything gateway-specific
   const result = await adapter.initiatePayment(adapterInput);
 
   if (!result.ok) {
     transaction.status = "failed";
     transaction.failureReason = result.message || "Gateway initiation failed";
     await transaction.save();
-
     throw new ApiError(500, result.message || "Gateway initiate error");
   }
 
-  // Store gateway order id
-  if (result.data?.orderId) {
-    transaction.gatewayOrderId = result.data.orderId;
-  } else if (result.data?.gatewayOrderId) {
-    transaction.gatewayOrderId = result.data.gatewayOrderId;
-  } else if (result.data?.params?.txnid) {
-    transaction.gatewayOrderId = result.data.params.txnid;
-  } else {
-    transaction.gatewayOrderId = transaction._id.toString();
-  }
+  // Save gateway’s order reference
+  transaction.gatewayOrderId =
+    result.data?.gatewayOrderId ||
+    result.data?.orderId ||
+    result.data?.params?.txnid ||
+    transaction._id.toString();
 
   await transaction.save();
 
-  // FIXED: Keep data nested properly
   return {
-    ok: true,  // Add 'ok' for consistency
+    ok: true,
     success: true,
     message: "Payment initiation successful",
     data: {
-      transactionId: transaction._id,
-      ...result.data,  // Now properly nested under 'data'
-    }
+      transactionId: transaction._id.toString(),
+      ...result.data,
+    },
   };
 };
