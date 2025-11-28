@@ -1,250 +1,153 @@
-import PaytmChecksumLib from "paytmchecksum";
+/* eslint-env node */
+
 import axios from "axios";
-
-function getPaytmConfig() {
-  const cleanKey = (process.env.PAYTM_MERCHANT_KEY || "")
-    .replace(/^["']|["']$/g, "");
-
-  return {
-    MID: process.env.PAYTM_MERCHANT_ID,
-    MKEY: cleanKey,
-    WEBSITE: process.env.PAYTM_MERCHANT_WEBSITE || "WEBSTAGING",
-    INDUSTRY: process.env.PAYTM_MERCHANT_INDUSTRY || "Retail",
-    CHANNEL: process.env.PAYTM_CHANNEL_ID || "WEB",
-    INIT_URL: "https://securegw-stage.paytm.in/theia/processTransaction",
-    STATUS_URL: "https://securegw-stage.paytm.in/merchant-status/getTxnStatus",
-    REFUND_URL: "https://securegw-stage.paytm.in/refund/apply",
-  };
-}
-
-function generatePaytmOrderId() {
-  const timestamp = Date.now().toString();
-  const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let randomStr = "";
-  for (let i = 0; i < 6; i++) {
-    randomStr += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `ORD${timestamp}${randomStr}`;
-}
+import crypto from "crypto";
 
 export default {
   // =========================================================
-  // INITIATE PAYMENT (v1 hosted checkout)
+  // INITIATE PAYMENT (TxnToken Flow)
   // =========================================================
   initiatePayment: async (input) => {
     try {
-      const { MID, MKEY, WEBSITE, INDUSTRY, CHANNEL, INIT_URL } =
-        getPaytmConfig();
+      const MID = process.env.PAYTM_MID;
+      const MERCHANT_KEY = process.env.PAYTM_MERCHANT_KEY;
+      const WEBSITE = process.env.PAYTM_MERCHANT_WEBSITE || "WEBSTAGING";
 
-      if (!MID || !MKEY) {
-        throw new Error(
-          `Paytm credentials not configured. MID: ${MID ? "OK" : "MISSING"}, MKEY: ${MKEY ? "OK" : "MISSING"}`
-        );
+      if (!MID || !MERCHANT_KEY) {
+        return { ok: false, message: "Missing MID or Merchant Key" };
       }
 
-      const { amount, customer = {}, redirect = {} } = input;
+      const {
+        amount,
+        transactionId,
+        customer,
+        redirect,
+        currency = "INR",
+      } = input;
 
-      const paytmOrderId = generatePaytmOrderId();
+      const ORDERID = `ORD${Date.now()}${Math.random()
+        .toString(36)
+        .slice(2, 8)
+        .toUpperCase()}`;
 
-      const callbackUrl =
-        redirect.notifyUrl ||
-        `${process.env.BACKEND_URL}/api/payments/callback/paytm`;
-
-      // FINAL CORRECT PARAMS (use the keys Paytm expects during checkout)
-      const paytmParams = {
-        MID: String(MID),
-        WEBSITE: String(WEBSITE),
-        INDUSTRY_TYPE_ID: String(INDUSTRY),
-        CHANNEL_ID: String(CHANNEL),
-        ORDERID: String(paytmOrderId),       // use ORDERID (no underscore)
-        CUST_ID: String(customer.email || "guest@example.com"),
-        TXNAMOUNT: String(Number(amount).toFixed(2)), // use TXNAMOUNT (no underscore)
-        CALLBACK_URL: String(callbackUrl),
-      };
-
-
-      console.log("=== PAYTM INITIATE DEBUG ===");
-      console.log("All params:", paytmParams);
-      console.log("CALLBACK_URL (sent to Paytm):", paytmParams.CALLBACK_URL);
-
-      // generate checksum
-      const CHECKSUMHASH = await PaytmChecksumLib.generateSignature(paytmParams, MKEY);
-      // final formData
-      const formData = { ...paytmParams, CHECKSUMHASH };
-      console.log("Form data to post to Paytm:", formData);
-      console.log("===========================");
-      // Form data to POST to Paytm is `formData` above
-
-      
-      return {
-        ok: true,
-        message: "Paytm initiate success",
-        data: {
-          paymentMethod: "redirect_form",
-          // POST to INIT_URL (no query params). The frontend posts formData (MID, ORDERID, CHECKSUMHASH) to this URL.
-          redirectUrl: `${INIT_URL}?mid=${MID}&orderId=${paytmOrderId}`,
-          gatewayOrderId: paytmOrderId,
-          formData: formData,
+      const paytmBody = {
+        requestType: "Payment",
+        mid: MID,
+        websiteName: WEBSITE,
+        orderId: ORDERID,
+        callbackUrl: redirect.notifyUrl,
+        txnAmount: {
+          value: Number(amount).toFixed(2),
+          currency,
         },
-        // expose callback URL and formData to the frontend for debugging
-        raw: { paytmOrderId, checksum: CHECKSUMHASH, callbackUrl: paytmParams.CALLBACK_URL, formData },
-      };
-    } catch (err) {
-      console.error("==== PAYTM INITIATE ERROR ====");
-      console.error("Error:", err.message);
-      console.error("Stack:", err.stack);
-      console.error("==============================");
-      return {
-        ok: false,
-        message: `Paytm initiate error: ${err.message}`,
-        raw: err.message,
-      };
-    }
-  },
-
-  // =========================================================
-  // VERIFY PAYMENT (v1 callback)
-  // =========================================================
-  verifyPayment: async ({ callbackPayload }) => {
-    try {
-      const { MID, MKEY, STATUS_URL } = getPaytmConfig();
-
-      console.log("=== PAYTM CALLBACK RECEIVED ===");
-      console.log("Payload:", JSON.stringify(callbackPayload, null, 2));
-
-      const orderId =
-        callbackPayload.ORDER_ID ||
-        callbackPayload.ORDERID ||
-        callbackPayload.ORDER_ID?.toString() ||
-        callbackPayload.orderId;
-
-      if (!orderId) {
-        return { ok: false, message: "Missing ORDERID in callback" };
-      }
-
-      // Verify callback checksum (if present)
-      const receivedChecksum = callbackPayload.CHECKSUMHASH;
-      if (receivedChecksum) {
-        const paramsForVerify = { ...callbackPayload };
-        delete paramsForVerify.CHECKSUMHASH;
-
-        const isValidChecksum = PaytmChecksumLib.verifySignature(
-          paramsForVerify,
-          MKEY,
-          receivedChecksum
-        );
-
-        console.log("Checksum Valid:", isValidChecksum);
-
-        if (!isValidChecksum) {
-          return { ok: false, message: "Checksum verification failed" };
-        }
-      }
-
-      // STATUS CHECK API (form-url-encoded)
-      const statusParams = {
-        MID: String(MID),
-        ORDERID: String(orderId),
+        userInfo: {
+          custId: customer?.email || "guest@example.com",
+        },
       };
 
-      const checksum = await PaytmChecksumLib.generateSignature(
-        statusParams,
-        MKEY
-      );
+      // ✔ Correct signature generation
+      const checksum = crypto
+        .createHmac("sha256", MERCHANT_KEY)
+        .update(JSON.stringify(paytmBody))
+        .digest("hex");
 
-      // build form-urlencoded body
-      const params = new URLSearchParams();
-      Object.entries({ ...statusParams, CHECKSUMHASH: checksum }).forEach(
-        ([k, v]) => params.append(k, String(v ?? ""))
-      );
+      const paytmParams = {
+        body: paytmBody,
+        head: { signature: checksum },
+      };
 
-      const res = await axios.post(STATUS_URL, params.toString(), {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      // ✔ Correct URL (the REAL reason your txnToken was missing)
+      const url = `https://securegw-stage.paytm.in/theia/api/v1/initiateTransaction?mid=${MID}&orderId=${ORDERID}`;
+
+      const { data } = await axios.post(url, paytmParams, {
+        headers: { "Content-Type": "application/json" },
       });
 
-      const result = res.data;
-      console.log("Paytm Status Response:", JSON.stringify(result, null, 2));
+      console.log("---- Paytm initiate response ----");
+      console.log(JSON.stringify(data, null, 2));
 
-      let status = "processing";
-      if (result.STATUS === "TXN_SUCCESS") status = "paid";
-      else if (result.STATUS === "TXN_FAILURE") status = "failed";
+      const txnToken = data?.body?.txnToken;
+      if (!txnToken) {
+        return { ok: false, message: "Paytm did not return txnToken" };
+      }
 
       return {
         ok: true,
-        message: "Paytm verify success",
         data: {
-          status,
-          gatewayOrderId: orderId,
-          gatewayPaymentId: result.TXNID || result.BANKTXNID,
-          amount: result.TXNAMOUNT,
+          paymentMethod: "paytm_js",
+          mid: MID,
+          orderId: ORDERID,
+          txnToken,
+          amount,
+          currency,
+          transactionId,
         },
-        raw: result,
       };
     } catch (err) {
-      return {
-        ok: false,
-        message: "Paytm verify error",
-        raw: err.response?.data || err.message,
-      };
+      console.error("Paytm INIT ERROR:", err.response?.data || err.message);
+      return { ok: false, message: "Paytm initiate failed" };
     }
   },
 
   // =========================================================
-  // REFUND (v1 refund API)
+  // VERIFY PAYMENT
   // =========================================================
-  refundPayment: async (input) => {
+  verifyPayment: async (input) => {
     try {
-      const { MID, MKEY, REFUND_URL } = getPaytmConfig();
-      const { gatewayPaymentId, gatewayOrderId, amount, reason } = input;
+      const { callbackPayload } = input;
 
-      const refundId = "RFND_" + Date.now();
+      const MID = process.env.PAYTM_MID;
+      const MERCHANT_KEY = process.env.PAYTM_MERCHANT_KEY;
+
+      const ORDERID =
+        callbackPayload?.ORDERID ||
+        callbackPayload?.orderId ||
+        callbackPayload?.order_id;
+
+      if (!ORDERID) {
+        return { ok: false, message: "ORDERID not found in callback" };
+      }
+
+      const body = { mid: MID, orderId: ORDERID };
+
+      const signature = crypto
+        .createHmac("sha256", MERCHANT_KEY)
+        .update(JSON.stringify(body))
+        .digest("hex");
 
       const payload = {
-        MID: String(MID),
-        TXNID: String(gatewayPaymentId),
-        ORDERID: String(gatewayOrderId || gatewayPaymentId),
-        REFUNDAMOUNT: String(amount || ""),
-        TXNTYPE: "REFUND",
-        REFID: String(refundId),
-        COMMENTS: String(reason || "Refund processed"),
+        body,
+        head: { signature },
       };
 
-      const checksum = await PaytmChecksumLib.generateSignature(
-        payload,
-        MKEY
-      );
+      const statusURL = "https://securegw-stage.paytm.in/v3/order/status";
 
-      const response = await axios.post(
-        REFUND_URL,
-        {
-          ...payload,
-          CHECKSUMHASH: checksum,
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const { data } = await axios.post(statusURL, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
 
-      const data = response.data;
+      console.log("---- Paytm status response ----");
+      console.log(JSON.stringify(data, null, 2));
+
+      const result = data?.body;
+      const status = result?.resultInfo?.resultStatus;
+
+      let normalized = "processing";
+      if (status === "TXN_SUCCESS") normalized = "paid";
+      if (status === "TXN_FAILURE") normalized = "failed";
 
       return {
         ok: true,
-        message: "Paytm refund processed",
         data: {
-          status: data?.RESPCODE === "10" ? "refunded" : "processing",
-          refundId,
-          amount,
+          status: normalized,
+          gatewayOrderId: ORDERID,
+          gatewayPaymentId: result?.txnId || "",
+          amount: result?.txnAmount,
         },
-        raw: data,
       };
     } catch (err) {
-      return {
-        ok: false,
-        message: "Paytm refund error",
-        raw: err.response?.data || err.message,
-      };
+      console.error("Paytm VERIFY ERROR:", err.response?.data || err.message);
+      return { ok: false, message: "Paytm verify failed" };
     }
   },
 };

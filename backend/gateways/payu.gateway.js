@@ -9,12 +9,6 @@ const PAYU_ENV = {
   baseUrl: process.env.PAYU_BASE_URL,
 };
 
-const CASHFREE_ENV = {
-  appId: process.env.CASHFREE_APP_ID,
-  secret: process.env.CASHFREE_SECRET,
-  baseUrl: process.env.CASHFREE_BASE_URL || "https://test.cashfree.com",
-};
-
 export default {
   initiatePayment: async (input) => {
     try {
@@ -147,108 +141,5 @@ export default {
     }
   },
 
-  cashfreePayment: async (input) => {
-    try {
-      const {
-        amount,
-        currency = "INR",
-        transactionId,
-        customer = {},
-        meta = {},
-        redirect = {},
-        config: configParam,
-      } = input;
-
-      const cfg = configParam && Object.keys(configParam).length ? configParam : CASHFREE_ENV;
-      const { appId, secret, baseUrl } = cfg || {};
-
-      if (!appId || !secret) {
-        return {
-          ok: false,
-          message: "Invalid Cashfree configuration: missing appId or secret",
-        };
-      }
-
-      if (!amount || !transactionId || !customer?.email) {
-        return { ok: false, message: "Missing required fields for Cashfree initiate" };
-      }
-
-      const txnAmount = Number(amount).toFixed(2);
-      const notifyUrl = redirect?.notifyUrl || redirect?.successUrl || "";
-      const redirectUrl = redirect?.successUrl || redirect?.success || "";
-
-      // Attempt to create a Cashfree Payment Link (preferred)
-      try {
-        const payload = {
-          link_amount: txnAmount,
-          link_currency: currency,
-          link_note: meta?.description || "Payment",
-          // make sure link_purpose is always present
-          link_purpose: meta?.linkPurpose || "ORDER_PAYMENT",
-          link_title: meta?.linkTitle || (meta?.description || "Payment"),
-          customer_details: {
-            customer_name: customer?.name || "",
-            customer_email: customer?.email || "",
-            customer_phone: customer?.phone || "",
-          },
-          notify_url: redirect?.notifyUrl || undefined,
-          redirect_url: redirect?.successUrl || undefined,
-        };
-
-        console.log("Cashfree create link payload:", payload);
-
-        // Try versioned endpoint first, fallback to /links
-        const linksEndpointCandidates = [
-          `${baseUrl}/api/v2/links`,
-          `${baseUrl}/links`,
-        ];
-
-        let resp;
-        for (const endpoint of linksEndpointCandidates) {
-          try {
-            resp = await axios.post(endpoint, payload, {
-              headers: {
-                "Content-Type": "application/json",
-                "x-client-id": appId,
-                "x-client-secret": secret,
-                "x-api-version": "2023-08-01",
-              },
-              timeout: 10000,
-            });
-
-            if (resp?.data) break;
-          } catch (err) {
-            console.warn("Cashfree create link attempt failed for", endpoint, err?.response?.data || err.message || err);
-            // try next endpoint
-          }
-        }
-
-        console.log("Cashfree create link response:", resp?.data);
-
-        const linkUrl = resp?.data?.link_url || resp?.data?.data?.link_url || resp?.data?.data?.link;
-
-        if (linkUrl) {
-          return {
-            ok: true,
-            message: "Cashfree initiate success",
-            data: {
-              paymentMethod: "redirect_url",
-              redirectUrl: linkUrl,
-              gatewayOrderId: resp.data?.data?.link_id || transactionId,
-              raw: resp.data,
-            },
-          };
-        }
-
-        console.warn("Cashfree: create link succeeded but no link_url returned", resp?.data);
-      } catch (err) {
-        console.warn("Cashfree create link error:", err.response?.data || err.message || err);
-        // continue to fallback
-      }
-
-      return { ok: false, message: "Cashfree payment initiation failed" };
-    } catch (err) {
-      return { ok: false, message: "Cashfree payment error", raw: err?.message || err };
-    }
-  },
+  
 };
