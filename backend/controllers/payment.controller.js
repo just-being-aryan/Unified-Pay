@@ -13,14 +13,14 @@ import Transaction from "../models/transaction.model.js";
 // ======================================================
 export const initiatePayment = asyncHandler(async (req, res) => {
   try {
-    console.log("=== INITIATE PAYMENT REQUEST ===");
-    console.log("Headers:", JSON.stringify(req.headers || {}, null, 2));
-    console.log("Body:", JSON.stringify(req.body || {}, null, 2));
-    console.log("================================");
+    // console.log("=== INITIATE PAYMENT REQUEST ===");
+    // console.log("Headers:", JSON.stringify(req.headers || {}, null, 2));
+    // console.log("Body:", JSON.stringify(req.body || {}, null, 2));
+    // console.log("================================");
 
     const { gateway, amount, currency, customer, meta } = req.body;
 
-    // validate early to get clearer errors
+    
     if (!gateway || !amount || !customer?.email) {
       return res.status(400).json({
         success: false,
@@ -28,7 +28,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       });
     }
 
-    // call state
+    
     const result = await paymentInitiateState({
       gateway,
       amount,
@@ -47,7 +47,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     return res.status(200).json(result);
   } catch (err) {
     console.error("INITIATE PAYMENT ERROR:", err?.response?.data || err?.message || err);
-    // include stack in dev only
+    
     const payload = {
       success: false,
       message: err.message || "Internal server error",
@@ -65,7 +65,27 @@ export const initiatePayment = asyncHandler(async (req, res) => {
 export const verifyPayment = asyncHandler(async (req, res) => {
   try {
     const gateway = req.params.gateway;
-    const callbackPayload = { ...(req.body || {}), ...(req.query || {}) };
+  
+  let raw = { ...(req.body || {}), ...(req.query || {}) };
+
+  const cashfreeLinkId =
+    raw?.data?.order?.order_tags?.link_id ||
+    raw?.data?.order?.order_tags?.cf_link_id ||
+    null;
+
+  
+  if (cashfreeLinkId) {
+    raw.ORDERID = cashfreeLinkId;
+    raw.orderId = cashfreeLinkId;
+    raw.order_id = cashfreeLinkId;
+
+    if (raw.data) raw.data.order_id = cashfreeLinkId;
+    if (raw.data?.order) raw.data.order.order_id = cashfreeLinkId;
+  }
+
+
+  const callbackPayload = raw;
+
 
     console.log("=== CALLBACK DEBUG ===");
     console.log("Gateway:", gateway);
@@ -75,7 +95,7 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
     const result = await paymentVerifyState(gateway, callbackPayload, {});
 
-    // Redirect user to frontend page with txn id and status
+   
     const frontendSuccess = process.env.FRONTEND_BASE || "http://localhost:5173";
     const successUrl = `${frontendSuccess}/payments/success?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
     const failureUrl = `${frontendSuccess}/payments/failure?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
@@ -87,7 +107,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     }
   } catch (err) {
     console.error("VERIFY PAYMENT ERROR:", err);
-    // Notify gateway (some gateways expect 200) but redirect user to frontend failure
     const frontendBase = process.env.FRONTEND_BASE || "http://localhost:5173";
     return res.redirect(`${frontendBase}/payments/failure`);
   }

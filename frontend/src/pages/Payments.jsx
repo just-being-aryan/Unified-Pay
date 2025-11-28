@@ -14,7 +14,6 @@ export default function Payments() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
   const FRONTEND_BASE = window.location.origin;
 
-  // Load Razorpay JS
   useEffect(() => {
     const existing = document.querySelector("#razorpay-sdk");
     if (existing) return;
@@ -23,8 +22,6 @@ export default function Payments() {
     script.id = "razorpay-sdk";
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
-    script.onload = () => console.log("Razorpay SDK Loaded");
-    script.onerror = () => console.error("Failed to load Razorpay SDK");
     document.body.appendChild(script);
   }, []);
 
@@ -44,6 +41,10 @@ export default function Payments() {
         amount: parseFloat(amount),
         currency: "INR",
         transactionId,
+
+        // FIX: userId must be sent for DB transaction creation
+        userId: user?._id || user?.id,
+
         customer: {
           name: user?.name || "Guest User",
           email: user?.email || "guest@example.com",
@@ -61,16 +62,35 @@ export default function Payments() {
         },
       };
 
-      console.log("Sending payment request:", payload);
-
       const res = await api.post("/api/payments/initiate", payload);
       const response = res.data?.data || res.data;
 
-      console.log("Initiate response:", response);
+      if (response.paymentMethod === "paytm_js") {
+        const script = document.createElement("script");
+        script.src = `https://securegw-stage.paytm.in/merchantpgpui/checkoutjs/merchants/${response.mid}.js`;
+        script.async = true;
 
-      // ---------------------------
-      // RAZORPAY JS CHECKOUT (FIXED)
-      // ---------------------------
+        script.onload = function () {
+          const config = {
+            root: "",
+            flow: "DEFAULT",
+            data: {
+              orderId: response.orderId,
+              token: response.txnToken,
+              tokenType: "TXN_TOKEN",
+              amount: response.amount,
+            },
+          };
+
+          window.Paytm.CheckoutJS.init(config)
+            .then(() => window.Paytm.CheckoutJS.invoke())
+            .catch(console.error);
+        };
+
+        document.body.appendChild(script);
+        return;
+      }
+
       if (response.paymentMethod === "razorpay_js") {
         if (!window.Razorpay) {
           alert("Razorpay SDK did not load");
@@ -83,37 +103,25 @@ export default function Payments() {
           currency: response.currency,
           name: "UnifiedPay",
           order_id: response.orderId,
-
-          // ⭐ HANDLER MODE — NO CALLBACK_URL, NO REDIRECT
           handler: function (resp) {
-  const verifyUrl =
-    `${API_BASE}/api/payments/callback/razorpay` +
-    `?razorpay_payment_id=${resp.razorpay_payment_id}` +
-    `&razorpay_order_id=${resp.razorpay_order_id}` +
-    `&razorpay_signature=${resp.razorpay_signature}` +
-    `&txnid=${response.transactionId}`;   // ⭐ ADD THIS ⭐
+            const verifyUrl =
+              `${API_BASE}/api/payments/callback/razorpay` +
+              `?razorpay_payment_id=${resp.razorpay_payment_id}` +
+              `&razorpay_order_id=${resp.razorpay_order_id}` +
+              `&razorpay_signature=${resp.razorpay_signature}` +
+              `&txnid=${response.transactionId}`;
 
-  window.location.href = verifyUrl;
-},
-
-
-          prefill: response.prefill,
-
-          theme: {
-            color: "#3399cc",
+            window.location.href = verifyUrl;
           },
+          prefill: response.prefill,
+          theme: { color: "#3399cc" },
         };
 
-        console.log("Opening Razorpay with options:", options);
-
-        const razorpayInstance = new window.Razorpay(options);
-        razorpayInstance.open();
+        const rz = new window.Razorpay(options);
+        rz.open();
         return;
       }
 
-      // ---------------------------
-      // FORM REDIRECT (PayU, Paytm)
-      // ---------------------------
       if (
         response.paymentMethod === "redirect_form" &&
         response.redirectUrl &&
@@ -136,17 +144,12 @@ export default function Payments() {
         return;
       }
 
-      // ---------------------------
-      // DIRECT URL REDIRECT (Cashfree)
-      // ---------------------------
       if (response.paymentMethod === "redirect_url" && response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
       }
 
-      console.error("Unexpected response:", response);
       alert("Unexpected response");
-
     } catch (err) {
       console.error("Payment initiation error:", err);
       alert(err.response?.data?.message || "Payment failed");
@@ -163,7 +166,6 @@ export default function Payments() {
         </h2>
 
         <form onSubmit={handlePayment} className="space-y-5">
-
           <div>
             <label className="block text-sm mb-1">Amount (₹)</label>
             <input

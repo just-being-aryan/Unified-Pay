@@ -38,6 +38,7 @@ export const paymentInitiateState = async (input) => {
     customerName: customer.name || null,
     meta,
     initiatedAt: new Date(),
+    transactionId: null, // filled later
   });
 
   // Prepare standardized adapter input
@@ -69,12 +70,34 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(500, result.message || "Gateway initiate error");
   }
 
-  // Save gateway’s order reference
-  transaction.gatewayOrderId =
-    result.data?.gatewayOrderId ||
-    result.data?.orderId ||
-    result.data?.params?.txnid ||
-    transaction._id.toString();
+  // ---------------------------------------------------
+  // 🔥 SPECIAL CASE: CASHFREE (store link_id + order_id)
+  // ---------------------------------------------------
+  if (gateway === "cashfree") {
+    const raw = result.data?.raw || {};
+    const linkId = raw.link_id || result.data?.gatewayOrderId || "";
+    const orderId =
+      raw.order_id ||
+      raw.cf_order_id ||
+      raw.payment?.cf_payment_id ||
+      "";
+
+    transaction.cashfreeLinkId = linkId;
+    transaction.cashfreeOrderId = orderId;
+
+    // keep gatewayOrderId = link_id for compatibility
+    transaction.gatewayOrderId = linkId;
+  } else {
+    // default for all other gateways
+    transaction.gatewayOrderId =
+      result.data?.gatewayOrderId ||
+      result.data?.orderId ||
+      result.data?.params?.txnid ||
+      transaction._id.toString();
+  }
+
+  // always store our own transaction reference
+  transaction.transactionId = transaction._id.toString();
 
   await transaction.save();
 

@@ -14,6 +14,14 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
+    // 🔥 NEW: store our own reference (string id)
+    transactionId: {
+      type: String,
+      index: true,
+      default: "",
+    },
+
+    // standard for all gateways
     gatewayOrderId: {
       type: String,
       index: true,
@@ -21,6 +29,20 @@ const transactionSchema = new mongoose.Schema(
     },
 
     gatewayPaymentId: {
+      type: String,
+      index: true,
+      default: "",
+    },
+
+    // 🔥 NEW: Cashfree-specific (link_id)
+    cashfreeLinkId: {
+      type: String,
+      index: true,
+      default: "",
+    },
+
+    // 🔥 NEW: Cashfree-specific (CFPay_xxx order_id)
+    cashfreeOrderId: {
       type: String,
       index: true,
       default: "",
