@@ -10,26 +10,44 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useAuth } from "@/context/useAuth";
+import { Download } from "lucide-react";
+
+/* -------------------------------------------------- */
+/* SHORT ID FORMATTER (Stripe-style)                  */
+/* -------------------------------------------------- */
+const shortId = (id) => (id ? id.slice(0, 6) + "..." + id.slice(-4) : "-");
 
 export default function Dashboard() {
   const { user } = useAuth();
 
   const [stats, setStats] = useState(null);
   const [gatewaySummary, setGatewaySummary] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [revenueTrend, setRevenueTrend] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [trendError, setTrendError] = useState(null);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState("payments");
+  const [paymentsSubTab, setPaymentsSubTab] = useState("all");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const limit = 10;
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [statsRes, gatewayRes] = await Promise.all([
+        const [statsRes, gatewayRes, paymentsRes] = await Promise.all([
           api.get("/api/reports/overall"),
           api.get("/api/reports/gateway-summary"),
+          api.get("/api/payments"),
         ]);
 
         setStats(statsRes.data.data);
         setGatewaySummary(gatewayRes.data.data);
+        setTransactions(paymentsRes.data.data);
 
         if (user.role === "admin") {
           try {
@@ -37,7 +55,6 @@ export default function Dashboard() {
             setRevenueTrend(trendRes.data.data);
           } catch (err) {
             setTrendError("Revenue trend only available for admins.");
-            console.log(err)
           }
         }
       } catch (err) {
@@ -50,19 +67,52 @@ export default function Dashboard() {
     loadData();
   }, [user.role]);
 
-  if (loading) return <div className="p-10 text-center text-lg">Loading dashboard...</div>;
+  if (loading) return <div className="p-10 text-center text-lg">Loading…</div>;
+
+  // Pagination logic
+  const totalPages = Math.ceil(transactions.length / limit);
+  const paginatedTxns = transactions.slice((page - 1) * limit, page * limit);
 
   return (
-    <div className="p-8 space-y-10">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+    <div className="p-8 max-w-6xl mx-auto space-y-10">
+      <div>
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-gray-600">Monitor your payment activities</p>
+      </div>
 
-      {/* KPI Cards */}
       <StatsCards stats={stats} />
 
-      {/* Gateway Summary */}
-      <GatewaySummaryTable data={gatewaySummary} />
+      <MainTabs active={activeTab} setActive={setActiveTab} />
 
-      {/* Revenue Trend (Admin only) */}
+      {/* === PAYMENTS TAB === */}
+      {activeTab === "payments" && (
+        <>
+          <PaymentsTabs
+            paymentsSubTab={paymentsSubTab}
+            setPaymentsSubTab={setPaymentsSubTab}
+          />
+
+          {paymentsSubTab === "all" && (
+            <TransactionTable
+              data={paginatedTxns}
+              page={page}
+              totalPages={totalPages}
+              setPage={setPage}
+            />
+          )}
+
+          {paymentsSubTab === "gateway" && (
+            <GatewaySummaryTable data={gatewaySummary} />
+          )}
+        </>
+      )}
+
+      {/* === GATEWAYS TAB === */}
+      {activeTab === "gateways" && (
+        <GatewaySummaryTable data={gatewaySummary} />
+      )}
+
+      {/* === REVENUE TREND (ADMIN) === */}
       {user.role === "admin" && (
         <RevenueTrendChart data={revenueTrend} error={trendError} />
       )}
@@ -70,65 +120,223 @@ export default function Dashboard() {
   );
 }
 
-/* ------------------------------ */
-/* COMPONENT: KPI CARDS           */
-/* ------------------------------ */
+/* -------------------------------------------------- */
+/* MAIN TABS                                           */
+/* -------------------------------------------------- */
+function MainTabs({ active, setActive }) {
+  const tabs = ["payments", "refunds", "gateways", "settings"];
 
+  return (
+    <div className="flex gap-4 border-b pb-2 text-sm">
+      {tabs.map((t) => (
+        <button
+          key={t}
+          className={`px-4 py-1 rounded-md capitalize ${
+            active === t
+              ? "bg-[#3F00FF] text-white"
+              : "text-gray-600 hover:text-black"
+          }`}
+          onClick={() => setActive(t)}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------------------------- */
+/* PAYMENTS SUB-TABS                                   */
+/* -------------------------------------------------- */
+function PaymentsTabs({ paymentsSubTab, setPaymentsSubTab }) {
+  return (
+    <div className="flex gap-4 text-sm mt-3">
+      <button
+        className={`px-4 py-1 rounded-md ${
+          paymentsSubTab === "all"
+            ? "bg-[#3F00FF] text-white"
+            : "text-gray-600 hover:text-black"
+        }`}
+        onClick={() => setPaymentsSubTab("all")}
+      >
+        All Transactions
+      </button>
+
+      <button
+        className={`px-4 py-1 rounded-md ${
+          paymentsSubTab === "gateway"
+            ? "bg-[#3F00FF] text-white"
+            : "text-gray-600 hover:text-black"
+        }`}
+        onClick={() => setPaymentsSubTab("gateway")}
+      >
+        Gateway-wise
+      </button>
+    </div>
+  );
+}
+
+/* -------------------------------------------------- */
+/* KPI CARDS                                           */
+/* -------------------------------------------------- */
 function StatsCards({ stats }) {
-  const statuses = stats?.byStatus || {};
+  if (!stats) return null;
+
+  const statuses = stats.byStatus || {};
+
+  const cardItems = [
+    { title: "Total Revenue", value: "₹" + stats.totalAmount },
+    { title: "Transactions", value: stats.totalPayments },
+    { title: "Success", value: statuses.paid?.count || 0 },
+    { title: "Failed", value: statuses.failed?.count || 0 },
+  ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
-      <Card title="Total Payments" value={stats.totalPayments} />
-      <Card title="Total Volume" value={"₹" + stats.totalAmount} />
-
-      <Card title="Successful" value={statuses.paid?.count || 0} />
-      <Card title="Failed" value={statuses.failed?.count || 0} />
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+      {cardItems.map((c, idx) => (
+        <div key={idx} className="bg-white p-5 rounded-xl shadow-sm border">
+          <p className="text-gray-500">{c.title}</p>
+          <p className="text-2xl font-bold mt-2">{c.value}</p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function Card({ title, value }) {
-  return (
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
-      <p className="text-gray-500 text-sm">{title}</p>
-      <p className="text-3xl font-bold mt-2">{value}</p>
-    </div>
-  );
-}
+/* -------------------------------------------------- */
+/* STRIPE-STYLE TRANSACTION TABLE                      */
+/* -------------------------------------------------- */
+function TransactionTable({ data, page, totalPages, setPage }) {
+  const getStatusColor = (s) => {
+    if (s === "paid") return "text-[#3F00FF] bg-[#eee8ff]";
+    if (s === "failed") return "text-red-600 bg-red-100";
+    return "text-gray-700 bg-gray-200";
+  };
 
-/* ------------------------------ */
-/* COMPONENT: GATEWAY SUMMARY     */
-/* ------------------------------ */
+  const handleInvoiceDownload = async (txnId) => {
+    try {
+      const res = await api.get(
+        `/api/payments/transaction/${txnId}?format=pdf`,
+        { responseType: "blob" }
+      );
 
-function GatewaySummaryTable({ data }) {
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `invoice-${txnId}.pdf`;
+      a.click();
+    } catch (err) {
+      console.error("Invoice download failed:", err);
+    }
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
-      <h2 className="text-xl font-bold mb-4">Gateway Summary</h2>
+    <div className="bg-white p-5 rounded-xl shadow-sm border mt-4">
+      <h2 className="text-lg font-bold mb-3">All Transactions</h2>
 
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Gateway</th>
-              <th className="py-2">Total Txns</th>
-              <th className="py-2">Success</th>
-              <th className="py-2">Failed</th>
-              <th className="py-2">Refunded</th>
-              <th className="py-2">Amount</th>
+        <table className="w-full text-left text-sm border-separate border-spacing-y-1">
+          <thead className="bg-gray-50 sticky top-0 z-10">
+            <tr className="text-gray-600">
+              <th className="py-2 px-3">Txn ID</th>
+              <th className="px-3">Gateway Payment</th>
+              <th className="px-3">Gateway</th>
+              <th className="px-3">Amount</th>
+              <th className="px-3">Status</th>
+              <th className="px-3">Date</th>
+              <th className="px-3">Invoice</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {data.map((tx) => (
+              <tr
+                key={tx._id}
+                className="hover:bg-gray-50 transition cursor-pointer rounded-lg"
+              >
+                <td className="py-2 px-3 font-medium">
+                  {shortId(tx.transactionId)}
+                </td>
+                <td className="px-3">{shortId(tx.gatewayPaymentId)}</td>
+                <td className="px-3 capitalize">{tx.gateway}</td>
+                <td className="px-3">₹{tx.amount}</td>
+                <td className="px-3">
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                      tx.status
+                    )}`}
+                  >
+                    {tx.status}
+                  </span>
+                </td>
+                <td className="px-3">
+                  {new Date(tx.createdAt).toLocaleString()}
+                </td>
+                <td className="px-3">
+                  <button
+                    onClick={() => handleInvoiceDownload(tx._id)}
+                    className="p-1 hover:bg-gray-200 rounded-md"
+                  >
+                    <Download size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* PAGINATION */}
+      <div className="flex justify-end gap-3 mt-4">
+        <button
+          disabled={page === 1}
+          onClick={() => setPage(page - 1)}
+          className="px-4 py-2 border rounded-lg disabled:opacity-40"
+        >
+          Prev
+        </button>
+        <button
+          disabled={page === totalPages}
+          onClick={() => setPage(page + 1)}
+          className="px-4 py-2 border rounded-lg disabled:opacity-40"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------- */
+/* GATEWAY SUMMARY TABLE                               */
+/* -------------------------------------------------- */
+function GatewaySummaryTable({ data }) {
+  return (
+    <div className="bg-white p-5 rounded-xl shadow-sm border mt-4">
+      <h2 className="text-lg font-bold mb-3">Gateway Summary</h2>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50">
+            <tr className="text-gray-600">
+              <th className="py-2 px-3">Gateway</th>
+              <th className="px-3">Total</th>
+              <th className="px-3">Success</th>
+              <th className="px-3">Failed</th>
+              <th className="px-3">Refunded</th>
+              <th className="px-3">Amount</th>
             </tr>
           </thead>
 
           <tbody>
             {data.map((gw, index) => (
               <tr key={index} className="border-b">
-                <td className="py-2 capitalize">{gw._id}</td>
-                <td className="py-2">{gw.totalTransactions}</td>
-                <td className="py-2">{gw.successCount}</td>
-                <td className="py-2">{gw.failedCount}</td>
-                <td className="py-2">{gw.refundedCount}</td>
-                <td className="py-2">₹{gw.totalAmount}</td>
+                <td className="py-2 px-3 capitalize">{gw._id}</td>
+                <td className="px-3">{gw.totalTransactions}</td>
+                <td className="px-3">{gw.successCount}</td>
+                <td className="px-3">{gw.failedCount}</td>
+                <td className="px-3">{gw.refundedCount}</td>
+                <td className="px-3">₹{gw.totalAmount}</td>
               </tr>
             ))}
           </tbody>
@@ -138,28 +346,34 @@ function GatewaySummaryTable({ data }) {
   );
 }
 
-/* ------------------------------ */
-/* COMPONENT: REVENUE TREND       */
-/* ------------------------------ */
-
+/* -------------------------------------------------- */
+/* REVENUE TREND CHART                                 */
+/* -------------------------------------------------- */
 function RevenueTrendChart({ data, error }) {
   return (
-    <div className="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-md">
-      <h2 className="text-xl font-bold mb-4">Revenue Trend (Last 30 Days)</h2>
+    <div className="bg-white p-5 rounded-xl shadow-sm border">
+      <h2 className="text-lg font-bold mb-3">
+        Revenue Trend (Last 30 Days)
+      </h2>
 
       {error && <p className="text-red-500">{error}</p>}
 
       {data.length === 0 ? (
-        <p className="text-gray-500">No revenue recorded in last 30 days.</p>
+        <p className="text-gray-500">No revenue recorded.</p>
       ) : (
         <div className="w-full h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data}>
-              <XAxis dataKey="_id" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
+              <XAxis dataKey="_id" />
+              <YAxis />
               <CartesianGrid strokeDasharray="3 3" />
               <Tooltip />
-              <Line type="monotone" dataKey="totalAmount" stroke="#2563eb" strokeWidth={3} />
+              <Line
+                type="monotone"
+                dataKey="totalAmount"
+                stroke="#3F00FF"
+                strokeWidth={3}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
