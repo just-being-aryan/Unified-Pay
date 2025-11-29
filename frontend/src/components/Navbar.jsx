@@ -86,15 +86,9 @@ export default function Navbar() {
                     to="/login"
                     className="px-5 py-2 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800 transition"
                   >
-                    Login
+                    Sign in
                   </Link>
 
-                  <Link
-                    to="/register"
-                    className="px-5 py-2 rounded-lg bg-blue-700 text-white font-medium hover:bg-blue-800 transition"
-                  >
-                    Register
-                  </Link>
                 </>
               )}
 

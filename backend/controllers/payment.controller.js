@@ -7,6 +7,9 @@ import { paymentRefundState } from "../states/paymentRefundState.js";
 
 import { logGatewayResponse } from "../utils/logGatewayResponse.js";
 import Transaction from "../models/transaction.model.js";
+import { generateInvoicePDF } from "../utils/generateInvoicePDF.js";
+import {generateBrandedInvoice} from "../utils/generateBrandedInvoice.js";
+
 
 // ======================================================
 // INITIATE PAYMENT
@@ -40,7 +43,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
         notifyUrl: req.body?.redirect?.notifyUrl,
       },
       meta: meta || {},
-      userId: req.user?.id || req.body.userId,
+      userId: req.user?._id || req.body.userId,
       config: req.body.config || {},
     });
 
@@ -147,17 +150,47 @@ export const getTransaction = asyncHandler(async (req, res) => {
 
   const isMongoId = id.length === 24 && /^[0-9a-fA-F]{24}$/.test(id);
 
-  let transaction;
-  if (isMongoId) {
-    transaction = await Transaction.findById(id);
-  } else {
-    transaction = await Transaction.findOne({ gatewayOrderId: id });
-  }
+  let transaction = isMongoId
+    ? await Transaction.findById(id)
+    : await Transaction.findOne({ gatewayOrderId: id });
 
   if (!transaction) throw new ApiError(404, "Transaction not found");
 
+  // If invoice requested → send as PDF
+  if (req.query.format === "pdf") {
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename=invoice-${transaction.transactionId}.pdf`
+  );
+
+  const pdf = generateBrandedInvoice(transaction);
+  return pdf.pipe(res);
+}
+
+  // Default: JSON
   res.status(200).json({
     success: true,
     transaction,
   });
 });
+
+
+
+export const getAllPayments = asyncHandler(async (req, res) => {
+  const filter = {};
+
+  // If normal merchant, show only THEIR payments
+  if (req.user.role !== "admin") {
+    filter.userId = req.user._id;
+  }
+
+  const payments = await Transaction.find(filter)
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: payments
+  });
+});
+

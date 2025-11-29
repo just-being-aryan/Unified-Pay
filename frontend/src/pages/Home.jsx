@@ -135,7 +135,6 @@ export default function Home() {
         <h4 className="text-gray-800 dark:text-gray-300 font-semibold">
           UniPay © {new Date().getFullYear()} — All Rights Reserved
         </h4>
-        <p className="text-gray-500 text-sm mt-2">Made with ❤️ for developers & businesses</p>
       </footer>
 
     </div>

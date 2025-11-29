@@ -1,16 +1,15 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Home from "@/pages/Home";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import Payments from "./pages/Payments";
+import Payments from "@/pages/Payments";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentFailure from "./pages/PaymentFailure";
-import Dashboard from "./pages/Dashboard";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentFailure from "@/pages/PaymentFailure";
+import Dashboard from "@/pages/Dashboard";
 import OauthHandler from "@/pages/OauthHandler";
 
-
+// NEW unified Auth Page
+import AuthPage from "@/pages/AuthPage";
 
 function App() {
   return (
@@ -19,9 +18,15 @@ function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+
           
+          <Route path="/auth" element={<AuthPage />} />
+
+          
+          <Route path="/login" element={<Navigate to="/auth" replace />} />
+          <Route path="/register" element={<Navigate to="/auth" replace />} />
+
+          {/* Protected Routes */}
           <Route
             path="/payments"
             element={
@@ -30,6 +35,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+
           <Route path="/oauth" element={<OauthHandler />} />
           <Route path="/payments/success" element={<PaymentSuccess />} />
           <Route path="/payments/failure" element={<PaymentFailure />} />

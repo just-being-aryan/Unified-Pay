@@ -3,7 +3,8 @@ import {
   initiatePayment,
   refundPayment,
   verifyPayment,
-  getTransaction
+  getTransaction,
+  getAllPayments,
 } from '../controllers/payment.controller.js';
 
 import { protect, isAdmin } from '../middleware/authMiddleware.js';
@@ -22,6 +23,9 @@ router.options('/callback/:gateway', (req, res) => res.sendStatus(200));
 router.post('/refund', protect, isAdmin, refundPayment);
 
 //get transaction info for dashboard
+router.get("/", protect, getAllPayments);
+
+//get single transaction
 router.get('/transaction/:id', getTransaction);
 
 export default router;
