@@ -15,7 +15,7 @@ import OauthHandler from "@/pages/OauthHandler";
 function App() {
   return (
     <Router>
-      <div className="bg-gray-50 dark:bg-gray-950 min-h-screen">
+      <div className="bg-gray-50 dark:bg-gray-950 min-h-screen pt-[120px]">
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
