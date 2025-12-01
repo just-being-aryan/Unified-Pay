@@ -1,6 +1,7 @@
 import axios from "axios";
 import qs from "querystring";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import User from "../models/user.model.js";
 
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -8,6 +9,32 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 // Create JWT
 const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
+
+
+// ----------------------------------------------------
+// Helper: Ensure OAuth user is created properly
+// ----------------------------------------------------
+const findOrCreateOAuthUser = async ({ name, email, provider, providerId }) => {
+  if (!email) {
+    console.error("❌ OAuth Error: No email returned from provider");
+    return null;
+  }
+
+  let user = await User.findOne({ email });
+
+  if (!user) {
+    user = await User.create({
+      name: name || "Unknown User",
+      email,
+      role: "viewer",
+      provider,
+      providerId,
+      password: crypto.randomBytes(20).toString("hex"), // Random hashed placeholder
+    });
+  }
+
+  return user;
+};
 
 
 /* ----------------------------------------------------
@@ -46,17 +73,16 @@ export const googleCallback = async (req, res) => {
 
     const email = payload.email;
     const name = payload.name;
+    const providerId = payload.sub;
 
-    // find or create user
-    let user = await User.findOne({ email });
+    const user = await findOrCreateOAuthUser({
+      name,
+      email,
+      provider: "google",
+      providerId,
+    });
 
-    if (!user) {
-      user = await User.create({
-        name,
-        email,
-        password: "oauth-user-no-password",
-      });
-    }
+    if (!user) return res.redirect(`${FRONTEND_URL}/login?error=no-email`);
 
     const token = generateToken(user._id);
 
@@ -66,6 +92,8 @@ export const googleCallback = async (req, res) => {
     return res.redirect(`${FRONTEND_URL}/login`);
   }
 };
+
+
 
 /* ----------------------------------------------------
    LINKEDIN LOGIN
@@ -109,17 +137,16 @@ export const linkedinCallback = async (req, res) => {
       }
     );
 
-    const { email, name } = profileRes.data;
+    const { email, name, sub: providerId } = profileRes.data;
 
-    let user = await User.findOne({ email });
+    const user = await findOrCreateOAuthUser({
+      name,
+      email,
+      provider: "linkedin",
+      providerId,
+    });
 
-    if (!user) {
-      user = await User.create({
-        name,
-        email,
-        password: "oauth-user-no-password",
-      });
-    }
+    if (!user) return res.redirect(`${FRONTEND_URL}/login?error=no-email`);
 
     const token = generateToken(user._id);
 
@@ -130,9 +157,11 @@ export const linkedinCallback = async (req, res) => {
   }
 };
 
-// ======================================
-// FACEBOOK AUTH
-// ======================================
+
+
+// ----------------------------------------------------
+// FACEBOOK LOGIN
+// ----------------------------------------------------
 export const facebookAuth = (req, res) => {
   const params = {
     client_id: process.env.FACEBOOK_APP_ID,
@@ -151,9 +180,9 @@ export const facebookCallback = async (req, res) => {
   try {
     const { code } = req.query;
 
-if (!code) return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
+    if (!code) return res.redirect(`${FRONTEND_URL}/auth-failed`);
 
-    // 1. Exchange code → access token
+    // Exchange code for token
     const tokenURL = "https://graph.facebook.com/v20.0/oauth/access_token";
 
     const tokenRes = await axios.get(tokenURL, {
@@ -166,9 +195,8 @@ if (!code) return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
     });
 
     const accessToken = tokenRes.data.access_token;
-    if (!accessToken) throw new Error("No FB access token");
 
-    // 2. Fetch user profile
+    // Fetch profile
     const userRes = await axios.get(
       "https://graph.facebook.com/me?fields=id,name,email",
       {
@@ -176,29 +204,22 @@ if (!code) return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
       }
     );
 
-    const { id, name, email } = userRes.data;
+    const { id: providerId, name, email } = userRes.data;
 
-    // 3. Find or create user
-    let user = await User.findOne({ email });
+    const user = await findOrCreateOAuthUser({
+      name,
+      email,
+      provider: "facebook",
+      providerId,
+    });
 
-    if (!user) {
-      user = await User.create({
-        name,
-        email,
-        provider: "facebook",
-        providerId: id,
-        password: "facebook-oauth-no-password",
-      });
-    }
+    if (!user) return res.redirect(`${FRONTEND_URL}/login?error=no-email`);
 
-    // 4. Generate JWT
     const token = generateToken(user._id);
 
-    // 5. Redirect to frontend with JWT
-    return res.redirect(`${process.env.FRONTEND_URL}/oauth?token=${token}`);
-
+    return res.redirect(`${FRONTEND_URL}/oauth?token=${token}`);
   } catch (err) {
     console.error("FACEBOOK OAuth Error:", err.response?.data || err.message);
-    return res.redirect(`${process.env.FRONTEND_URL}/auth-failed`);
+    return res.redirect(`${FRONTEND_URL}/auth-failed`);
   }
 };

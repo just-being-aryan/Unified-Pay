@@ -26,16 +26,18 @@ export const paymentInitiateState = async (input) => {
   const { ok, adapter } = gatewayFactory(gateway);
   if (!ok) throw new ApiError(400, "Unsupported gateway");
 
-  // Create DB transaction
+  // Create DB transaction with proper "customer" block (matches model)
   const transaction = await Transaction.create({
     userId,
     gateway,
     amount,
     currency,
     status: "pending",
-    customerEmail: customer.email,
-    customerPhone: customer.phone || null,
-    customerName: customer.name || null,
+    customer: {
+      name: customer.name || "N/A",
+      email: customer.email || "N/A",
+      phone: customer.phone || "N/A",
+    },
     meta,
     initiatedAt: new Date(),
     transactionId: null, // filled later
@@ -71,7 +73,7 @@ export const paymentInitiateState = async (input) => {
   }
 
   // ---------------------------------------------------
-  // 🔥 SPECIAL CASE: CASHFREE (store link_id + order_id)
+  // SPECIAL CASE: CASHFREE (store link_id + order_id)
   // ---------------------------------------------------
   if (gateway === "cashfree") {
     const raw = result.data?.raw || {};

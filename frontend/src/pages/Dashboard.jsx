@@ -10,11 +10,9 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useAuth } from "@/context/useAuth";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 
-/* -------------------------------------------------- */
-/* SHORT ID FORMATTER (Stripe-style)                  */
-/* -------------------------------------------------- */
+/* SHORT ID FORMATTER */
 const shortId = (id) => (id ? id.slice(0, 6) + "..." + id.slice(-4) : "-");
 
 export default function Dashboard() {
@@ -36,36 +34,51 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const limit = 10;
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [statsRes, gatewayRes, paymentsRes] = await Promise.all([
-          api.get("/api/reports/overall"),
-          api.get("/api/reports/gateway-summary"),
-          api.get("/api/payments"),
-        ]);
+  /* LOAD DATA */
+  const loadData = async () => {
+    try {
+      const [statsRes, gatewayRes, paymentsRes] = await Promise.all([
+        api.get("/api/reports/overall"),
+        api.get("/api/reports/gateway-summary"),
+        api.get("/api/payments"),
+      ]);
 
-        setStats(statsRes.data.data);
-        setGatewaySummary(gatewayRes.data.data);
-        setTransactions(paymentsRes.data.data);
+      setStats(statsRes.data.data);
+      setGatewaySummary(gatewayRes.data.data);
+      setTransactions(paymentsRes.data.data);
 
-        if (user.role === "admin") {
-          try {
-            const trendRes = await api.get("/api/reports/revenue-trend");
-            setRevenueTrend(trendRes.data.data);
-          } catch (err) {
-            setTrendError("Revenue trend only available for admins.");
-          }
+      if (user.role === "admin") {
+        try {
+          const trendRes = await api.get("/api/reports/revenue-trend");
+          setRevenueTrend(trendRes.data.data);
+        } catch (err) {
+          console.log(err)
+          setTrendError("Revenue trend only available for admins.");
         }
-      } catch (err) {
-        console.error("Dashboard Error:", err);
-      } finally {
-        setLoading(false);
       }
+    } catch (err) {
+      console.error("Dashboard Error:", err);
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     loadData();
   }, [user.role]);
+
+  /* DELETE HANDLER */
+  const handleDelete = async (id) => {
+    if (!confirm("Delete this transaction?")) return;
+
+    try {
+      await api.delete(`/api/payments/transaction/${id}`);
+      await loadData(); // Reload WITHOUT full-page refresh
+    } catch (err) {
+      console.error("Delete failed", err);
+      alert("Could not delete transaction");
+    }
+  };
 
   if (loading) return <div className="p-10 text-center text-lg">Loading…</div>;
 
@@ -75,6 +88,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-10">
+      {/* HEADER */}
       <div>
         <h1 className="text-3xl font-bold">Dashboard</h1>
         <p className="text-gray-600">Monitor your payment activities</p>
@@ -98,6 +112,7 @@ export default function Dashboard() {
               page={page}
               totalPages={totalPages}
               setPage={setPage}
+              onDelete={handleDelete}
             />
           )}
 
@@ -112,7 +127,7 @@ export default function Dashboard() {
         <GatewaySummaryTable data={gatewaySummary} />
       )}
 
-      {/* === REVENUE TREND (ADMIN) === */}
+      {/* === REVENUE TREND (ADMIN ONLY) === */}
       {user.role === "admin" && (
         <RevenueTrendChart data={revenueTrend} error={trendError} />
       )}
@@ -121,7 +136,7 @@ export default function Dashboard() {
 }
 
 /* -------------------------------------------------- */
-/* MAIN TABS                                           */
+/* MAIN TABS */
 /* -------------------------------------------------- */
 function MainTabs({ active, setActive }) {
   const tabs = ["payments", "refunds", "gateways", "settings"];
@@ -146,7 +161,7 @@ function MainTabs({ active, setActive }) {
 }
 
 /* -------------------------------------------------- */
-/* PAYMENTS SUB-TABS                                   */
+/* PAYMENTS SUB-TABS */
 /* -------------------------------------------------- */
 function PaymentsTabs({ paymentsSubTab, setPaymentsSubTab }) {
   return (
@@ -177,7 +192,7 @@ function PaymentsTabs({ paymentsSubTab, setPaymentsSubTab }) {
 }
 
 /* -------------------------------------------------- */
-/* KPI CARDS                                           */
+/* KPI CARDS */
 /* -------------------------------------------------- */
 function StatsCards({ stats }) {
   if (!stats) return null;
@@ -204,9 +219,9 @@ function StatsCards({ stats }) {
 }
 
 /* -------------------------------------------------- */
-/* STRIPE-STYLE TRANSACTION TABLE                      */
+/* TRANSACTION TABLE */
 /* -------------------------------------------------- */
-function TransactionTable({ data, page, totalPages, setPage }) {
+function TransactionTable({ data, page, totalPages, setPage, onDelete }) {
   const getStatusColor = (s) => {
     if (s === "paid") return "text-[#3F00FF] bg-[#eee8ff]";
     if (s === "failed") return "text-red-600 bg-red-100";
@@ -244,7 +259,7 @@ function TransactionTable({ data, page, totalPages, setPage }) {
               <th className="px-3">Amount</th>
               <th className="px-3">Status</th>
               <th className="px-3">Date</th>
-              <th className="px-3">Invoice</th>
+              <th className="px-3 text-center">Actions</th>
             </tr>
           </thead>
 
@@ -252,7 +267,7 @@ function TransactionTable({ data, page, totalPages, setPage }) {
             {data.map((tx) => (
               <tr
                 key={tx._id}
-                className="hover:bg-gray-50 transition cursor-pointer rounded-lg"
+                className="hover:bg-gray-50 transition rounded-lg"
               >
                 <td className="py-2 px-3 font-medium">
                   {shortId(tx.transactionId)}
@@ -272,12 +287,24 @@ function TransactionTable({ data, page, totalPages, setPage }) {
                 <td className="px-3">
                   {new Date(tx.createdAt).toLocaleString()}
                 </td>
-                <td className="px-3">
+
+                {/* ACTIONS */}
+                <td className="px-3 flex items-center gap-3">
+                  {/* DOWNLOAD INVOICE */}
                   <button
                     onClick={() => handleInvoiceDownload(tx._id)}
                     className="p-1 hover:bg-gray-200 rounded-md"
                   >
                     <Download size={16} />
+                  </button>
+
+                  {/* DELETE BUTTON (real button, not hyperlink) */}
+                  <button
+                    onClick={() => onDelete(tx._id)}
+                    className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 flex items-center gap-1"
+                  >
+                    <Trash2 size={14} />
+                    <span className="text-xs">Delete</span>
                   </button>
                 </td>
               </tr>
@@ -308,7 +335,7 @@ function TransactionTable({ data, page, totalPages, setPage }) {
 }
 
 /* -------------------------------------------------- */
-/* GATEWAY SUMMARY TABLE                               */
+/* GATEWAY SUMMARY TABLE */
 /* -------------------------------------------------- */
 function GatewaySummaryTable({ data }) {
   return (
@@ -347,14 +374,12 @@ function GatewaySummaryTable({ data }) {
 }
 
 /* -------------------------------------------------- */
-/* REVENUE TREND CHART                                 */
+/* REVENUE TREND CHART */
 /* -------------------------------------------------- */
 function RevenueTrendChart({ data, error }) {
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border">
-      <h2 className="text-lg font-bold mb-3">
-        Revenue Trend (Last 30 Days)
-      </h2>
+      <h2 className="text-lg font-bold mb-3">Revenue Trend (Last 30 Days)</h2>
 
       {error && <p className="text-red-500">{error}</p>}
 

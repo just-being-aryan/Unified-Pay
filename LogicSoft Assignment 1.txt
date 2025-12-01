@@ -1,0 +1,19 @@
+Centralized Umbrella Payment Gateway system 
+
+
+Core Features : 
+
+1) Centralized Payment Gateway , comprising of all the Payment mediums like RazorPay, pay2b, etc.. , so that user can select any of them when making a payment instead of just sticking to one payment gateway, we want to integrate multiple of them
+
+2)At the time of payments, we need to minimize the failure rate so that we get less refund requests, the payment should be smooth enough and wont cause any issues , even the refund system should be reactive
+
+3) There should be an admin page, that admin can see and facilitate the transactions made by using any payment gateway such as razor pay or payub etc
+
+
+
+AT LAST, this would be launched as a product and would be hosted on GEM ( a govt portal) as a service
+
+FUTURE RESOLUTION :
+
+Plan to make a payment gateway system of their own like razor pay
+

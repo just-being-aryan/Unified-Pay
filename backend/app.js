@@ -7,6 +7,8 @@ import paymentRoutes from "./routes/payment.route.js";
 import webhookRoutes from "./routes/webhook.route.js";
 import morgan from "morgan";
 import authRoutes from "./routes/auth.routes.js";
+import cron from "node-cron";
+import { failStaleTransactions } from "./jobs/failStaleTransactions.js";
 
 
 const app = express()
@@ -57,7 +59,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (req, res) => res.send("API is running..."));
-
+cron.schedule("*/5 * * * *", failStaleTransactions);
 app.use("/api/users", userRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/payments", paymentRoutes);

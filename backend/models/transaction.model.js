@@ -14,7 +14,7 @@ const transactionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // 🔥 NEW: store our own reference (string id)
+ 
     transactionId: {
       type: String,
       index: true,
@@ -34,14 +34,14 @@ const transactionSchema = new mongoose.Schema(
       default: "",
     },
 
-    // 🔥 NEW: Cashfree-specific (link_id)
+    
     cashfreeLinkId: {
       type: String,
       index: true,
       default: "",
     },
 
-    // 🔥 NEW: Cashfree-specific (CFPay_xxx order_id)
+  
     cashfreeOrderId: {
       type: String,
       index: true,
@@ -57,7 +57,11 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: "INR",
     },
-
+    customer: {
+      name: { type: String, default: "N/A" },
+      email: { type: String, default: "N/A" },
+      phone: { type: String, default: "N/A" },
+    },
     status: {
       type: String,
       enum: [

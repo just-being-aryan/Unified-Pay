@@ -7,7 +7,7 @@ import { paymentRefundState } from "../states/paymentRefundState.js";
 
 import { logGatewayResponse } from "../utils/logGatewayResponse.js";
 import Transaction from "../models/transaction.model.js";
-import { generateInvoicePDF } from "../utils/generateInvoicePDF.js";
+
 import {generateBrandedInvoice} from "../utils/generateBrandedInvoice.js";
 
 
@@ -31,12 +31,18 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       });
     }
 
+    const normalizedCustomer = {
+      name: customer.name || "N/A",
+      email: customer.email || "N/A",
+      phone: customer.phone || "N/A",
+    };
+
     
     const result = await paymentInitiateState({
       gateway,
       amount,
       currency,
-      customer,
+      customer : normalizedCustomer,
       redirect: {
         successUrl: req.body?.redirect?.successUrl || `${process.env.FRONTEND_BASE}/success`,
         failureUrl: req.body?.redirect?.failureUrl || `${process.env.FRONTEND_BASE}/failure`,
@@ -194,3 +200,22 @@ export const getAllPayments = asyncHandler(async (req, res) => {
   });
 });
 
+
+export const deleteTransaction = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const txn = await Transaction.findById(id);
+  if (!txn) throw new ApiError(404, "Transaction not found");
+
+  // Allow only admins or owners
+  // if (req.user.role === "viewer") {
+  //   throw new ApiError(403, "You do not have permission to delete payments");
+  // }
+
+  await Transaction.findByIdAndDelete(id);
+
+  return res.status(200).json({
+    success: true,
+    message: "Transaction deleted successfully",
+  });
+});

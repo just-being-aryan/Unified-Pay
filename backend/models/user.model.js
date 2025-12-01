@@ -61,6 +61,16 @@ const userSchema = new mongoose.Schema(
     lastLogin: {
       type: Date,
     },
+     provider: {
+      type: String,
+      default: null,
+    },
+
+    providerId: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   { timestamps: true }
 );

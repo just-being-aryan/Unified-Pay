@@ -48,7 +48,7 @@ export default function Payments() {
         customer: {
           name: user?.name || "Guest User",
           email: user?.email || "guest@example.com",
-          phone: user?.phone || "9999999999",
+          phone: user?.phone || "",
         },
         redirect: {
           successUrl: `${FRONTEND_BASE}/payments/success`,

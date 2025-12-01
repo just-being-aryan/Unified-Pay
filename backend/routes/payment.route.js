@@ -5,6 +5,7 @@ import {
   verifyPayment,
   getTransaction,
   getAllPayments,
+  deleteTransaction
 } from '../controllers/payment.controller.js';
 
 import { protect, isAdmin } from '../middleware/authMiddleware.js';
@@ -27,5 +28,11 @@ router.get("/", protect, getAllPayments);
 
 //get single transaction
 router.get('/transaction/:id', getTransaction);
+
+
+//Deletr a transaction as admin
+router.delete("/transaction/:id", protect, isAdmin, deleteTransaction);
+
+
 
 export default router;
