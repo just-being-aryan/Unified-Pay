@@ -9,7 +9,7 @@ import morgan from "morgan";
 import authRoutes from "./routes/auth.routes.js";
 import cron from "node-cron";
 import { failStaleTransactions } from "./jobs/failStaleTransactions.js";
-
+import projectRoutes from "./routes/project.routes.js";
 
 const app = express()
 
@@ -66,6 +66,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/auth", authRoutes); 
 
+app.use("/api/projects", projectRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
