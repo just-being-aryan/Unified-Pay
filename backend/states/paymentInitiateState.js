@@ -6,6 +6,7 @@ import ApiError from "../utils/apiError.js";
 export const paymentInitiateState = async (input) => {
   const {
     gateway,
+    projectId,
     amount,
     currency = "INR",
     customer,
@@ -23,46 +24,74 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(400, "userId is required for transaction creation");
   }
 
+  // GET ADAPTER
   const { ok, adapter } = gatewayFactory(gateway);
   if (!ok) throw new ApiError(400, "Unsupported gateway");
 
-  // Create DB transaction with proper "customer" block (matches model)
+
+  // -----------------------------
+  // CLEAN + SANITIZE CUSTOMER
+  // -----------------------------
+
+  const cleanCustomer = {
+  name: customer?.name || "",
+  email: customer?.email || "",
+  phone: customer?.phone || "9999999999",  // always assign fallback
+};
+
+
+  // -----------------------------
+  // CREATE TRANSACTION RECORD
+  // -----------------------------
   const transaction = await Transaction.create({
     userId,
     gateway,
     amount,
+    projectId,
     currency,
     status: "pending",
-    customer: {
-      name: customer.name || "N/A",
-      email: customer.email || "N/A",
-      phone: customer.phone || "N/A",
-    },
+
+    customer: cleanCustomer,
+
     meta,
     initiatedAt: new Date(),
-    transactionId: null, // filled later
+    transactionId: null,
   });
 
-  // Prepare standardized adapter input
+
+  // -----------------------------
+  // PREPARE ADAPTER INPUT
+  // -----------------------------
   const adapterInput = {
+    projectId,
     amount,
     currency,
     transactionId: transaction._id.toString(),
-    customer: {
-      name: customer.name || "",
-      email: customer.email || "",
-      phone: customer.phone || "",
-    },
+
+    customer: cleanCustomer,
+
     redirect: {
       successUrl: redirect?.successUrl || "",
       failureUrl: redirect?.failureUrl || "",
       notifyUrl: redirect?.notifyUrl || redirect?.successUrl || "",
     },
+
     meta,
     config: config || {},
   };
 
-  // Adapter handles everything gateway-specific
+
+  console.log("\n--- PAYMENT INIT STATE INPUT ---");
+  console.log("GATEWAY:", gateway);
+  console.log("PROJECT ID:", projectId);
+  console.log("CUSTOMER:", cleanCustomer);
+  console.log("CONFIG RECEIVED:", config);
+  console.log("-------------------------------\n");
+
+
+  // -----------------------------
+  // CALL ADAPTER
+  // -----------------------------
   const result = await adapter.initiatePayment(adapterInput);
 
   if (!result.ok) {
@@ -72,12 +101,18 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(500, result.message || "Gateway initiate error");
   }
 
-  // ---------------------------------------------------
-  // SPECIAL CASE: CASHFREE (store link_id + order_id)
-  // ---------------------------------------------------
+
+  // -----------------------------
+  // SPECIAL CASE — CASHFREE
+  // -----------------------------
   if (gateway === "cashfree") {
     const raw = result.data?.raw || {};
-    const linkId = raw.link_id || result.data?.gatewayOrderId || "";
+
+    const linkId =
+      raw.link_id ||
+      result.data?.gatewayOrderId ||
+      "";
+
     const orderId =
       raw.order_id ||
       raw.cf_order_id ||
@@ -87,10 +122,8 @@ export const paymentInitiateState = async (input) => {
     transaction.cashfreeLinkId = linkId;
     transaction.cashfreeOrderId = orderId;
 
-    // keep gatewayOrderId = link_id for compatibility
     transaction.gatewayOrderId = linkId;
   } else {
-    // default for all other gateways
     transaction.gatewayOrderId =
       result.data?.gatewayOrderId ||
       result.data?.orderId ||
@@ -98,10 +131,10 @@ export const paymentInitiateState = async (input) => {
       transaction._id.toString();
   }
 
-  // always store our own transaction reference
   transaction.transactionId = transaction._id.toString();
 
   await transaction.save();
+
 
   return {
     ok: true,

@@ -10,20 +10,18 @@ import Transaction from "../models/transaction.model.js";
 
 import {generateBrandedInvoice} from "../utils/generateBrandedInvoice.js";
 
-
 // ======================================================
 // INITIATE PAYMENT
 // ======================================================
 export const initiatePayment = asyncHandler(async (req, res) => {
-  try {
-    // console.log("=== INITIATE PAYMENT REQUEST ===");
-    // console.log("Headers:", JSON.stringify(req.headers || {}, null, 2));
-    // console.log("Body:", JSON.stringify(req.body || {}, null, 2));
-    // console.log("================================");
 
+  console.log("\n\n=== INITIATE PAYMENT REQUEST BODY ===");
+  console.log(JSON.stringify(req.body, null, 2));
+  console.log("======================================\n\n");
+
+  try {
     const { gateway, amount, currency, customer, meta } = req.body;
 
-    
     if (!gateway || !amount || !customer?.email) {
       return res.status(400).json({
         success: false,
@@ -32,12 +30,11 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     }
 
     const normalizedCustomer = {
-      name: customer.name || "N/A",
-      email: customer.email || "N/A",
-      phone: customer.phone || "N/A",
+      name: customer?.name ?? "",
+      email: customer?.email ?? "",
+      ...(customer?.phone ? { phone: customer.phone } : {}),
     };
 
-    
     const result = await paymentInitiateState({
       gateway,
       amount,
@@ -69,42 +66,63 @@ export const initiatePayment = asyncHandler(async (req, res) => {
 });
 
 // ======================================================
-// VERIFY PAYMENT (BACKEND CALLBACK / WEBHOOK)
+// VERIFY PAYMENT - UNIFIED HANDLER
+// Handles both webhook/redirect AND frontend AJAX callbacks
 // ======================================================
 export const verifyPayment = asyncHandler(async (req, res) => {
+  console.log("🔥 VERIFY PAYMENT CALLBACK HIT");
+  console.log("METHOD:", req.method);
+  console.log("GATEWAY:", req.params.gateway);
+  console.log("BODY:", req.body);
+  console.log("QUERY:", req.query);
+
   try {
     const gateway = req.params.gateway;
   
-  let raw = { ...(req.body || {}), ...(req.query || {}) };
+    let raw = { ...(req.body || {}), ...(req.query || {}) };
 
-  const cashfreeLinkId =
-    raw?.data?.order?.order_tags?.link_id ||
-    raw?.data?.order?.order_tags?.cf_link_id ||
-    null;
+    const cashfreeLinkId =
+      raw?.data?.order?.order_tags?.link_id ||
+      raw?.data?.order?.order_tags?.cf_link_id ||
+      null;
 
-  
-  if (cashfreeLinkId) {
-    raw.ORDERID = cashfreeLinkId;
-    raw.orderId = cashfreeLinkId;
-    raw.order_id = cashfreeLinkId;
+    if (cashfreeLinkId) {
+      raw.ORDERID = cashfreeLinkId;
+      raw.orderId = cashfreeLinkId;
+      raw.order_id = cashfreeLinkId;
 
-    if (raw.data) raw.data.order_id = cashfreeLinkId;
-    if (raw.data?.order) raw.data.order.order_id = cashfreeLinkId;
-  }
+      if (raw.data) raw.data.order_id = cashfreeLinkId;
+      if (raw.data?.order) raw.data.order.order_id = cashfreeLinkId;
+    }
 
-
-  const callbackPayload = raw;
-
+    const callbackPayload = raw;
 
     console.log("=== CALLBACK DEBUG ===");
     console.log("Gateway:", gateway);
-    console.log("req.body:", req.body);
-    console.log("req.query:", req.query);
+    console.log("Callback Payload:", JSON.stringify(callbackPayload, null, 2));
     console.log("=====================");
 
     const result = await paymentVerifyState(gateway, callbackPayload, {});
 
-   
+    console.log("✅ Verification Result:", result);
+
+    // Detect if this is an AJAX request (Razorpay frontend callback)
+    const isAjax = 
+      req.headers['content-type']?.includes('application/json') ||
+      req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+      req.method === 'POST' && req.body?.razorpay_payment_id; // Razorpay specific
+
+    // If AJAX request, return JSON
+    if (isAjax) {
+      return res.status(200).json({
+        ok: true,
+        success: true,
+        message: "Payment verified",
+        data: result.data,
+      });
+    }
+
+    // Otherwise, redirect (for PayU, Cashfree, PayPal)
     const frontendSuccess = process.env.FRONTEND_BASE || "http://localhost:5173";
     const successUrl = `${frontendSuccess}/payments/success?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
     const failureUrl = `${frontendSuccess}/payments/failure?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
@@ -116,6 +134,21 @@ export const verifyPayment = asyncHandler(async (req, res) => {
     }
   } catch (err) {
     console.error("VERIFY PAYMENT ERROR:", err);
+    
+    // If AJAX, return JSON error
+    const isAjax = 
+      req.headers['content-type']?.includes('application/json') ||
+      req.method === 'POST' && req.body?.razorpay_payment_id;
+
+    if (isAjax) {
+      return res.status(err.statusCode || 500).json({
+        ok: false,
+        success: false,
+        message: err.message || "Verification failed",
+      });
+    }
+
+    // Otherwise redirect to failure
     const frontendBase = process.env.FRONTEND_BASE || "http://localhost:5173";
     return res.redirect(`${frontendBase}/payments/failure`);
   }
@@ -164,15 +197,15 @@ export const getTransaction = asyncHandler(async (req, res) => {
 
   // If invoice requested → send as PDF
   if (req.query.format === "pdf") {
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename=invoice-${transaction.transactionId}.pdf`
-  );
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=invoice-${transaction.transactionId}.pdf`
+    );
 
-  const pdf = generateBrandedInvoice(transaction);
-  return pdf.pipe(res);
-}
+    const pdf = generateBrandedInvoice(transaction);
+    return pdf.pipe(res);
+  }
 
   // Default: JSON
   res.status(200).json({
@@ -180,8 +213,6 @@ export const getTransaction = asyncHandler(async (req, res) => {
     transaction,
   });
 });
-
-
 
 export const getAllPayments = asyncHandler(async (req, res) => {
   const filter = {};
@@ -200,17 +231,11 @@ export const getAllPayments = asyncHandler(async (req, res) => {
   });
 });
 
-
 export const deleteTransaction = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const txn = await Transaction.findById(id);
   if (!txn) throw new ApiError(404, "Transaction not found");
-
-  // Allow only admins or owners
-  // if (req.user.role === "viewer") {
-  //   throw new ApiError(403, "You do not have permission to delete payments");
-  // }
 
   await Transaction.findByIdAndDelete(id);
 

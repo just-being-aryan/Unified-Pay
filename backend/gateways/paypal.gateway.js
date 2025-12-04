@@ -1,6 +1,9 @@
 // backend/gateways/paypal.gateway.js
 import axios from "axios";
 
+export const requiredFields = ["clientId", "clientSecret", "mode"];
+
+
 function getPayPalConfig() {
   const CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
   const SECRET = process.env.PAYPAL_SECRET;

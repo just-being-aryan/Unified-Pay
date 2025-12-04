@@ -2,20 +2,23 @@
 import axios from "axios";
 import crypto from "crypto";
 
+export const requiredFields = ["keyId", "keySecret", "mode"];
+
 export default {
   // =========================================================
-  // INITIATE PAYMENT — Razorpay Standard Checkout (popup)
+  // INITIATE PAYMENT — Razorpay JS Checkout
   // =========================================================
   initiatePayment: async (input) => {
+    console.log("\n[Razorpay] Initiate Payment");
+
     try {
       const KEY_ID = process.env.RAZORPAY_TEST_API_KEY;
       const KEY_SECRET = process.env.RAZORPAY_TEST_API_SECRET;
 
-      console.log("\n=========== RAZORPAY INITIATE ===========");
-      console.log("Using Razorpay Key:", KEY_ID);
+      console.log("[Razorpay] KEY_ID:", KEY_ID);
+      console.log("[Razorpay] KEY_SECRET loaded?:", KEY_SECRET ? "YES" : "NO");
 
       if (!KEY_ID || !KEY_SECRET) {
-        console.log("❌ Missing Razorpay keys");
         return { ok: false, message: "Missing Razorpay API keys" };
       }
 
@@ -28,15 +31,17 @@ export default {
         meta = {},
       } = input;
 
-      console.log("Input received:", input);
-
       if (!amount || !transactionId) {
-        console.log("❌ Missing amount or transactionId");
         return { ok: false, message: "Missing amount or transactionId" };
       }
 
+      console.log("[Razorpay] Amount:", amount);
+      console.log("[Razorpay] TransactionId:", transactionId);
+      console.log("[Razorpay] Customer:", customer);
+      console.log("[Razorpay] Redirect:", redirect);
+
       const orderPayload = {
-        amount: Math.round(Number(amount) * 100),
+        amount: Math.round(Number(amount) * 100), // convert to paise
         currency,
         receipt: transactionId,
         notes: {
@@ -44,28 +49,27 @@ export default {
           customer_name: customer.name,
           customer_email: customer.email,
           customer_phone: customer.phone,
-          description: meta.description || "Payment",
+          description: meta?.description || "Payment",
         },
       };
 
-      console.log("Creating Razorpay order with payload:", orderPayload);
+      console.log("[Razorpay] Creating Order Payload:", orderPayload);
 
-      // CREATE ORDER
       const orderRes = await axios.post(
         "https://api.razorpay.com/v1/orders",
         orderPayload,
-        { auth: { username: KEY_ID, password: KEY_SECRET } }
+        {
+          auth: {
+            username: KEY_ID,
+            password: KEY_SECRET,
+          },
+        }
       );
 
       const order = orderRes.data;
 
-      console.log("✨ Razorpay Order Created Successfully ✨");
-      console.log("Razorpay Order Response:", order);
-      console.log("Order ID returned:", order.id);
-      console.log("Amount returned:", order.amount);
-      console.log("Returning callbackUrl:", redirect.notifyUrl);
+      console.log("[Razorpay] Order Created:", order);
 
-      // RETURN TO FRONTEND
       return {
         ok: true,
         message: "Razorpay initiate success",
@@ -76,18 +80,16 @@ export default {
           amount: order.amount,
           currency,
           callbackUrl: redirect.notifyUrl,
+          transactionId, // IMPORTANT: Return this so frontend can send it back
           prefill: {
             name: customer.name,
             email: customer.email,
             contact: customer.phone,
           },
-          redirect: true,
         },
       };
     } catch (err) {
-      console.log("\n❌❌ RAZORPAY INITIATE ERROR ❌❌");
-      console.log("Error message:", err.message);
-      console.log("Error response:", err.response?.data);
+      console.log("[Razorpay] Initiate Error:", err.response?.data || err.message);
 
       return {
         ok: false,
@@ -98,40 +100,47 @@ export default {
   },
 
   // =========================================================
-  // VERIFY PAYMENT
+  // VERIFY PAYMENT SIGNATURE
   // =========================================================
   verifyPayment: async ({ callbackPayload }) => {
-    try {
-      console.log("\n=========== RAZORPAY VERIFY ===========");
-      console.log("Callback Payload:", callbackPayload);
+    console.log("\n[Razorpay] Verify Payment");
+    console.log("[Razorpay] Callback Payload:", callbackPayload);
 
+    try {
       const KEY_SECRET = process.env.RAZORPAY_TEST_API_SECRET;
+      console.log("[Razorpay] KEY_SECRET loaded?:", KEY_SECRET ? "YES" : "NO");
 
       const {
         razorpay_order_id,
         razorpay_payment_id,
         razorpay_signature,
+        txnid, // Custom transaction ID from frontend
       } = callbackPayload;
 
+      console.log("[Razorpay] razorpay_order_id:", razorpay_order_id);
+      console.log("[Razorpay] razorpay_payment_id:", razorpay_payment_id);
+      console.log("[Razorpay] razorpay_signature:", razorpay_signature);
+      console.log("[Razorpay] txnid (custom):", txnid);
+
       if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-        console.log("❌ Missing Razorpay verification fields");
         return { ok: false, message: "Missing Razorpay verification fields" };
       }
 
+      // Verify signature
       const body = `${razorpay_order_id}|${razorpay_payment_id}`;
+
       const expectedSignature = crypto
         .createHmac("sha256", KEY_SECRET)
         .update(body)
         .digest("hex");
 
-      const isValid = expectedSignature === razorpay_signature;
+      console.log("[Razorpay] Expected Signature:", expectedSignature);
+      console.log("[Razorpay] Received Signature:", razorpay_signature);
 
-      console.log("Expected Signature:", expectedSignature);
-      console.log("Received Signature:", razorpay_signature);
-      console.log("Signature valid:", isValid);
+      const isValid = expectedSignature === razorpay_signature;
+      console.log("[Razorpay] Signature match:", isValid);
 
       if (!isValid) {
-        console.log("❌ Signature mismatch");
         return {
           ok: true,
           message: "Invalid Razorpay signature",
@@ -139,13 +148,13 @@ export default {
             status: "failed",
             gatewayOrderId: razorpay_order_id,
             gatewayPaymentId: razorpay_payment_id,
-            transactionId: razorpay_order_id,
+            transactionId: txnid, // MUST be your custom txnid
           },
         };
       }
 
-      console.log("✨ Razorpay Payment Verified Successfully ✨");
-
+      // Signature is valid - payment successful
+      // CRITICAL: Return txnid as transactionId so paymentVerifyState can find the DB record
       return {
         ok: true,
         message: "Razorpay verify success",
@@ -153,17 +162,73 @@ export default {
           status: "paid",
           gatewayOrderId: razorpay_order_id,
           gatewayPaymentId: razorpay_payment_id,
-          transactionId: razorpay_order_id,
+          transactionId: txnid, // MUST be your custom txnid, not razorpay_order_id
         },
       };
     } catch (err) {
-      console.log("\n❌❌ RAZORPAY VERIFY ERROR ❌❌");
-      console.log("Error message:", err.message);
-      console.log("Error response:", err.response?.data);
+      console.log("[Razorpay] Verify Error:", err.response?.data || err.message);
 
       return {
         ok: false,
         message: "Razorpay verify error",
+        raw: err.response?.data || err.message,
+      };
+    }
+  },
+
+  // =========================================================
+  // REFUND PAYMENT
+  // =========================================================
+  refundPayment: async ({ gatewayPaymentId, amount, reason }) => {
+    console.log("\n[Razorpay] Refund Request");
+    console.log("[Razorpay] gatewayPaymentId:", gatewayPaymentId);
+    console.log("[Razorpay] amount:", amount);
+    console.log("[Razorpay] reason:", reason);
+
+    try {
+      const KEY_ID = process.env.RAZORPAY_TEST_API_KEY;
+      const KEY_SECRET = process.env.RAZORPAY_TEST_API_SECRET;
+
+      if (!KEY_ID || !KEY_SECRET) {
+        return { ok: false, message: "Missing Razorpay credentials" };
+      }
+
+      const refundPayload = {
+        amount: Math.round(Number(amount) * 100), // paise
+        notes: { reason: reason || "Refund" },
+      };
+
+      console.log("[Razorpay] Refund Payload:", refundPayload);
+
+      const refundRes = await axios.post(
+        `https://api.razorpay.com/v1/payments/${gatewayPaymentId}/refund`,
+        refundPayload,
+        {
+          auth: {
+            username: KEY_ID,
+            password: KEY_SECRET,
+          },
+        }
+      );
+
+      const data = refundRes.data;
+      console.log("[Razorpay] Refund Response:", data);
+
+      return {
+        ok: true,
+        message: "Razorpay refund success",
+        data: {
+          refundId: data.id,
+          status: data.status === "processed" ? "refunded" : "processing",
+          amount: data.amount,
+        },
+      };
+    } catch (err) {
+      console.log("[Razorpay] Refund Error:", err.response?.data || err.message);
+
+      return {
+        ok: false,
+        message: "Razorpay refund error",
         raw: err.response?.data || err.message,
       };
     }

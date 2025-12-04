@@ -8,6 +8,13 @@ const transactionSchema = new mongoose.Schema(
       required: true,
     },
 
+      projectId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Project",
+        required : false,
+        index: true,
+      },
+
     gateway: {
       type: String,
       required: true,

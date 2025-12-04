@@ -14,9 +14,13 @@ export default function Payments() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL;
   const FRONTEND_BASE = window.location.origin;
 
+  // OPTIONAL: ?project=xxxx
+  const urlParams = new URLSearchParams(window.location.search);
+  const projectId = urlParams.get("project") || null;
+
+  // Razorpay SDK loader
   useEffect(() => {
-    const existing = document.querySelector("#razorpay-sdk");
-    if (existing) return;
+    if (document.querySelector("#razorpay-sdk")) return;
 
     const script = document.createElement("script");
     script.id = "razorpay-sdk";
@@ -24,6 +28,11 @@ export default function Payments() {
     script.async = true;
     document.body.appendChild(script);
   }, []);
+
+  const sanitizePhone = (phone) => {
+    const num = (phone || "").trim();
+    return /^[0-9]{8,15}$/.test(num) ? num : ""; // Cashfree-safe
+  };
 
   const handlePayment = async (e) => {
     e.preventDefault();
@@ -36,25 +45,36 @@ export default function Payments() {
         .toString(36)
         .substr(2, 9)}`;
 
+      // Sanitize phone - only include if valid
+      const sanitizedPhone = (() => {
+        const num = (user?.phone || "").trim();
+        return /^[0-9]{8,15}$/.test(num) ? num : null;
+      })();
+
+      // Final sanitized customer object - exclude phone if invalid
+      const sanitizedCustomer = {
+        name: user?.name || "Guest User",
+        email: user?.email || "guest@example.com",
+        ...(sanitizedPhone ? { phone: sanitizedPhone } : {}),
+      };
+
       const payload = {
+        projectId: projectId || undefined,
         gateway,
         amount: parseFloat(amount),
         currency: "INR",
         transactionId,
 
-        // FIX: userId must be sent for DB transaction creation
         userId: user?._id || user?.id,
 
-        customer: {
-          name: user?.name || "Guest User",
-          email: user?.email || "guest@example.com",
-          phone: user?.phone || "",
-        },
+        customer: sanitizedCustomer,
+
         redirect: {
           successUrl: `${FRONTEND_BASE}/payments/success`,
           failureUrl: `${FRONTEND_BASE}/payments/failure`,
           notifyUrl: `${API_BASE}/api/payments/callback/${gateway}`,
         },
+
         meta: {
           description: description || "Payment",
           linkPurpose: "ORDER_PAYMENT",
@@ -65,12 +85,13 @@ export default function Payments() {
       const res = await api.post("/api/payments/initiate", payload);
       const response = res.data?.data || res.data;
 
+      // ─────────────── PAYTM JS ───────────────
       if (response.paymentMethod === "paytm_js") {
         const script = document.createElement("script");
         script.src = `https://securegw-stage.paytm.in/merchantpgpui/checkoutjs/merchants/${response.mid}.js`;
         script.async = true;
 
-        script.onload = function () {
+        script.onload = () => {
           const config = {
             root: "",
             flow: "DEFAULT",
@@ -91,37 +112,62 @@ export default function Payments() {
         return;
       }
 
+      // ─────────────── RAZORPAY ───────────────
       if (response.paymentMethod === "razorpay_js") {
-        if (!window.Razorpay) {
-          alert("Razorpay SDK did not load");
-          return;
-        }
+  if (!window.Razorpay) {
+    alert("Razorpay SDK not loaded");
+    return;
+  }
 
-        const options = {
-          key: response.key,
-          amount: response.amount,
-          currency: response.currency,
-          name: "UnifiedPay",
-          order_id: response.orderId,
-          handler: function (resp) {
-            const verifyUrl =
-              `${API_BASE}/api/payments/callback/razorpay` +
-              `?razorpay_payment_id=${resp.razorpay_payment_id}` +
-              `&razorpay_order_id=${resp.razorpay_order_id}` +
-              `&razorpay_signature=${resp.razorpay_signature}` +
-              `&txnid=${response.transactionId}`;
+  const contact =
+    sanitizedCustomer.phone ||
+    response.prefill?.contact ||
+    "9999999999";
 
-            window.location.href = verifyUrl;
-          },
-          prefill: response.prefill,
-          theme: { color: "#3399cc" },
-        };
+  const options = {
+    key: response.key,
+    amount: String(response.amount), // ENSURE STRING
+    currency: response.currency,
+    name: "UnifiedPay",
+    order_id: response.orderId,
 
-        const rz = new window.Razorpay(options);
-        rz.open();
-        return;
+    prefill: {
+      name: sanitizedCustomer.name,
+      email: sanitizedCustomer.email,
+      contact: contact ? String(contact) : ""
+    },
+
+    handler: async (resp) => {
+      try {
+        const verifyRes = await api.post(`/api/payments/callback/razorpay`, {
+          razorpay_payment_id: resp.razorpay_payment_id,
+          razorpay_order_id: resp.razorpay_order_id,
+          razorpay_signature: resp.razorpay_signature,
+          txnid: response.transactionId,
+        });
+
+        const status = verifyRes.data?.data?.status || "unknown";
+
+        window.location.href =
+          status === "paid"
+            ? `/payments/success?txnid=${response.transactionId}`
+            : `/payments/failure?txnid=${response.transactionId}&status=${status}`;
+      } catch (err) {
+        window.location.href = `/payments/failure?txnid=${response.transactionId}&status=failed`;
       }
+    },
 
+    theme: { color: "#3399cc" },
+  };
+
+  const rz = new window.Razorpay(options);
+  rz.open();
+  return;
+}
+
+
+
+      // ─────────────── REDIRECT FORM (PayU, others) ───────────────
       if (
         response.paymentMethod === "redirect_form" &&
         response.redirectUrl &&
@@ -144,12 +190,13 @@ export default function Payments() {
         return;
       }
 
+      // ─────────────── SIMPLE REDIRECT (Cashfree) ───────────────
       if (response.paymentMethod === "redirect_url" && response.redirectUrl) {
         window.location.href = response.redirectUrl;
         return;
       }
 
-      alert("Unexpected response");
+      alert("Unexpected payment response");
     } catch (err) {
       console.error("Payment initiation error:", err);
       alert(err.response?.data?.message || "Payment failed");

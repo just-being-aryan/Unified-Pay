@@ -8,11 +8,8 @@ import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFailure from "@/pages/PaymentFailure";
 import Dashboard from "@/pages/Dashboard";
 import OauthHandler from "@/pages/OauthHandler";
-
-// NEW unified Auth Page
+import ProjectsLayout from "@/pages/projects/ProjectsLayout";
 import AuthPage from "@/pages/AuthPage";
-
-// NEW project wizard import
 import CreateProjectWizard from "@/pages/projects/CreateProjectWizard";
 
 function App() {
@@ -22,9 +19,9 @@ function App() {
         <Navbar />
 
         <Routes>
+
           {/* Public Routes */}
           <Route path="/" element={<Home />} />
-
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/login" element={<Navigate to="/auth" replace />} />
           <Route path="/register" element={<Navigate to="/auth" replace />} />
@@ -55,14 +52,16 @@ function App() {
             }
           />
 
-         
-          {/* Redirect /projects → /projects/create */}
+          {/* PROJECTS ROUTES */}
           <Route
             path="/projects"
-            element={<Navigate to="/projects/create" replace />}
+            element={
+              <ProtectedRoute>
+                <ProjectsLayout />
+              </ProtectedRoute>
+            }
           />
 
-          {/* The multi-step wizard */}
           <Route
             path="/projects/create"
             element={

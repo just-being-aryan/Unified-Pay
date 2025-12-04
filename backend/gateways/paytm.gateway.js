@@ -3,6 +3,10 @@
 import axios from "axios";
 import crypto from "crypto";
 
+export const requiredFields = ["mid", "merchantKey", "merchantWebsite", "mode"];
+
+
+
 export default {
   // =========================================================
   // INITIATE PAYMENT (TxnToken Flow)

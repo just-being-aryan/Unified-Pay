@@ -15,6 +15,7 @@ const app = express()
 
 app.use(morgan("dev"));
 
+// -------------------- CORS FIX --------------------
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -24,35 +25,48 @@ app.use(cors({
       "http://localhost:5174",
     ];
 
-    const isNgrokDomain = origin && (
-      origin.includes('.ngrok') ||
-      origin.includes('.ngrok-free.dev') ||
-      origin.includes('.ngrok-free.app')
-    );
+    const isNgrokDomain =
+      origin.includes("ngrok") || origin.includes("ngrok-free");
 
     if (allowedOrigins.includes(origin) || isNgrokDomain) {
       callback(null, true);
     } else {
-      callback(null, true);
+      callback(null, true); // allow all for dev
     }
   },
+
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "x-client-id",
+    "x-client-secret",
+    "x-api-version",
+    "x-razorpay-signature",
+  ],
 }));
 
 // Raw body only for webhooks
 app.use((req, res, next) => {
-  if (req.originalUrl.startsWith("/api/webhooks")) {
-    let data = "";
-    req.on("data", chunk => (data += chunk));
-    req.on("end", () => {
-      req.rawBody = data;
-      next();
-    });
-  } else {
-    next();
+  if (req.method === "OPTIONS") {
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With, x-client-id, x-client-secret, x-api-version, x-razorpay-signature"
+    );
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    );
+    res.header(
+      "Access-Control-Allow-Origin",
+      req.headers.origin || "*"
+    );
+    return res.sendStatus(200);
   }
+  next();
 });
 
 app.use(express.json());

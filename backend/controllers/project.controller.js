@@ -15,25 +15,75 @@ export const createProject = asyncHandler(async (req, res) => {
 
   
   const normalizedGateways = {};
+
   if (gateways && typeof gateways === "object") {
-    for (const [key, val] of Object.entries(gateways)) {
-      const k = String(key).toLowerCase().trim();
-      normalizedGateways[k] = {
-        enabled: !!val.enabled,
-        config: val.config || {},
+    for (const [rawKey, val] of Object.entries(gateways)) {
+      const key = String(rawKey).toLowerCase().trim();
+
+      if (!val || typeof val !== "object") continue;
+
+      const enabled = !!val.enabled;
+      const cfg = val.config || {};
+
+      // Mapping correction we implemented earlier:
+      let normalizedConfig = {};
+      let mode = cfg.mode || environment;
+
+      switch (key) {
+        case "payu":
+          normalizedConfig = {
+            merchantKey: cfg.merchantKey?.trim() || "",
+            merchantSalt: cfg.merchantSalt?.trim() || "",
+          };
+          break;
+
+        case "razorpay":
+          normalizedConfig = {
+            keyId: cfg.keyId?.trim() || "",
+            keySecret: cfg.keySecret?.trim() || "",
+          };
+          break;
+
+        case "cashfree":
+          normalizedConfig = {
+            clientId: cfg.clientId?.trim() || "",
+            clientSecret: cfg.clientSecret?.trim() || "",
+          };
+          break;
+
+        default:
+          // generic mapping (fallback)
+          normalizedConfig = { ...cfg };
+      }
+
+      normalizedGateways[key] = {
+        enabled,
+        credentials: normalizedConfig,
+        mode, // store test/live  
       };
     }
   }
 
   // generate default api key pair
   const pair = Project.generateKeyPair();
+
   const newProject = await Project.create({
     name,
     description: description || "",
     owner: req.user._id,
     environment,
+
     callbacks: callbacks || {},
-    apiKeys: [{ keyId: pair.keyId, secret: pair.secret, label: "default" }],
+
+    apiKeys: [
+      {
+        keyId: pair.keyId,
+        secret: pair.secret,
+        label: "default",
+      },
+    ],
+
+    // 🔥 the correct gateway storage format
     gatewayConfigs: normalizedGateways,
   });
 
@@ -49,14 +99,15 @@ export const createProject = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/projects/:id
- * Get a single project (owner or admin)
  */
 export const getProject = asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
   if (!project) throw new ApiError(404, "Project not found");
 
-  
-  if (req.user.role !== "admin" && project.owner.toString() !== req.user._id.toString()) {
+  if (
+    req.user.role !== "admin" &&
+    project.owner.toString() !== req.user._id.toString()
+  ) {
     throw new ApiError(403, "Access denied");
   }
 
@@ -65,7 +116,6 @@ export const getProject = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/projects
- * List projects for the current user (or admin sees all)
  */
 export const listProjects = asyncHandler(async (req, res) => {
   const filter = {};

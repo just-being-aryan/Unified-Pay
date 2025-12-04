@@ -2,6 +2,8 @@ import crypto from "crypto";
 import axios from "axios";
 
 const DEFAULT_PAYU_TEST_URL = "https://test.payu.in/_payment";
+export const requiredFields = ["merchantKey", "merchantSalt", "mode"];
+
 
 const PAYU_ENV = {
   key: process.env.PAYU_MERCHANT_KEY,
