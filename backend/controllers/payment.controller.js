@@ -4,6 +4,7 @@ import ApiError from "../utils/apiError.js";
 import { paymentInitiateState } from "../states/paymentInitiateState.js";
 import { paymentVerifyState } from "../states/paymentVerifyState.js";
 import { paymentRefundState } from "../states/paymentRefundState.js";
+import { applyProjectGatewayConfig } from "../utils/applyProjectGatewayConfig.js";
 
 import { logGatewayResponse } from "../utils/logGatewayResponse.js";
 import Transaction from "../models/transaction.model.js";
@@ -35,11 +36,11 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       ...(customer?.phone ? { phone: customer.phone } : {}),
     };
 
-    const result = await paymentInitiateState({
+    const rawInput = {
       gateway,
       amount,
       currency,
-      customer : normalizedCustomer,
+      customer: normalizedCustomer,
       redirect: {
         successUrl: req.body?.redirect?.successUrl || `${process.env.FRONTEND_BASE}/success`,
         failureUrl: req.body?.redirect?.failureUrl || `${process.env.FRONTEND_BASE}/failure`,
@@ -48,7 +49,14 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       meta: meta || {},
       userId: req.user?._id || req.body.userId,
       config: req.body.config || {},
-    });
+      projectId: req.body.projectId || null,
+    };
+
+
+    const finalInput = await applyProjectGatewayConfig(rawInput);
+
+    const result = await paymentInitiateState(finalInput);
+
 
     return res.status(200).json(result);
   } catch (err) {

@@ -11,8 +11,7 @@ const transactionSchema = new mongoose.Schema(
       projectId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Project",
-        required : false,
-        index: true,
+        default : null
       },
 
     gateway: {

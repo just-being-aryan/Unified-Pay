@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import api from "@/api/axios";
 import { useAuth } from "@/context/useAuth";
 
-export default function Payments() {
+
+export default function Payments({ projectId: injectedProjectId = null,
+  allowedGateways = null }) {
   const { user } = useAuth();
 
   const [gateway, setGateway] = useState("payu");
@@ -16,7 +18,9 @@ export default function Payments() {
 
   // OPTIONAL: ?project=xxxx
   const urlParams = new URLSearchParams(window.location.search);
-  const projectId = urlParams.get("project") || null;
+  const urlProjectId = urlParams.get("project") || null;
+  const projectId = injectedProjectId || urlProjectId;
+
 
   // Razorpay SDK loader
   useEffect(() => {
@@ -153,6 +157,7 @@ export default function Payments() {
             ? `/payments/success?txnid=${response.transactionId}`
             : `/payments/failure?txnid=${response.transactionId}&status=${status}`;
       } catch (err) {
+        console.log(err)
         window.location.href = `/payments/failure?txnid=${response.transactionId}&status=failed`;
       }
     },
@@ -237,16 +242,15 @@ export default function Payments() {
 
           <div>
             <label className="block text-sm mb-1">Select Gateway</label>
-            <select
+           <select
               value={gateway}
               onChange={(e) => setGateway(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg"
             >
-              <option value="payu">PayU</option>
-              <option value="paytm">Paytm</option>
-              <option value="paypal">PayPal</option>
-              <option value="cashfree">Cashfree</option>
-              <option value="razorpay">Razorpay</option>
+              {(allowedGateways || ["payu","paytm","paypal","cashfree","razorpay"])
+                .map(g => (
+                  <option key={g} value={g}>{g.toUpperCase()}</option>
+                ))}
             </select>
           </div>
 

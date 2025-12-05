@@ -9,13 +9,19 @@ import RefundsTab from "./tabs/RefundsTab";
 import TransactionsTab from "./tabs/TransactionsTab";
 
 export default function ProjectDashboard({ project }) {
+
+  
+  
   const [activeTab, setActiveTab] = useState("dashboard");
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ------------------------------------------------------
-  // LOAD PROJECT-SPECIFIC DASHBOARD DATA
-  // ------------------------------------------------------
+  if (!project) {
+  return <div className="text-gray-600 text-lg p-6">Loading project…</div>;
+}
+
+
+  
   const loadStats = async () => {
     try {
       const res = await api.get(`/api/projects/${project._id}/stats`);
@@ -31,9 +37,7 @@ export default function ProjectDashboard({ project }) {
     loadStats();
   }, [project._id]);
 
-  // ------------------------------------------------------
-  // DELETE PROJECT
-  // ------------------------------------------------------
+  
   const handleDeleteProject = async () => {
     if (!confirm("Are you sure you want to permanently delete this project?"))
       return;
@@ -52,14 +56,20 @@ export default function ProjectDashboard({ project }) {
 
   return (
     <div className="space-y-8">
-      {/* HEADER */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">{project.name}</h1>
           <p className="text-gray-600">{project.description || "No description"}</p>
         </div>
 
-        {/* DELETE PROJECT */}
+
+      <button
+        onClick={() => window.location.href = `/projects/${project._id}/test-payment`}
+        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+      >
+        Test Payment
+      </button>
+  
         <button
           onClick={handleDeleteProject}
           className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
@@ -67,9 +77,10 @@ export default function ProjectDashboard({ project }) {
           <Trash2 size={18} />
           Delete Project
         </button>
+
+        
       </div>
 
-      {/* TABS */}
       <div className="flex gap-4 border-b pb-2">
         {["dashboard", "transactions", "refunds", "settings"].map((tab) => (
           <button
@@ -86,7 +97,6 @@ export default function ProjectDashboard({ project }) {
         ))}
       </div>
 
-      {/* TAB CONTENT */}
       {activeTab === "dashboard" && <DashboardTab stats={stats} />}
       {activeTab === "transactions" && (
         <TransactionsTab projectId={project._id} />

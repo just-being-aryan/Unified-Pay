@@ -11,6 +11,9 @@ import OauthHandler from "@/pages/OauthHandler";
 import ProjectsLayout from "@/pages/projects/ProjectsLayout";
 import AuthPage from "@/pages/AuthPage";
 import CreateProjectWizard from "@/pages/projects/CreateProjectWizard";
+import ProjectTestPaymentPage from "@/pages/projects/ProjectTestPaymentPage";
+import ProjectDashboard from "@/pages/projects/ProjectDashboard";
+
 
 function App() {
   return (
@@ -32,6 +35,15 @@ function App() {
           {/* Payment Redirect Pages */}
           <Route path="/payments/success" element={<PaymentSuccess />} />
           <Route path="/payments/failure" element={<PaymentFailure />} />
+          <Route
+            path="/projects/:id"
+            element={
+              <ProtectedRoute>
+                <ProjectDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="/projects/:id/test-payment" element={<ProjectTestPaymentPage />} />
 
           {/* Protected Pages */}
           <Route

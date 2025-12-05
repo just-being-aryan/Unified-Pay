@@ -1,1 +1,0 @@
-ngrok http --domain=salome-unveering-pseudoethically.ngrok-free.dev 8000

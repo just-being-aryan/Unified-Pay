@@ -16,7 +16,6 @@ export default function CreateProjectWizard() {
       failureUrl: "",
       webhookUrl: "",
     },
-    environment: "test",
     gateways: {},
     gstInfo: null,
   });
@@ -28,6 +27,8 @@ export default function CreateProjectWizard() {
   };
 
   const handleSubmitFinal = async () => {
+    
+    console.log('FINAL PROJECT DATA :',projectData)
     try {
       const res = await api.post("/api/projects", projectData);
       const projectId = res.data.data.project._id;

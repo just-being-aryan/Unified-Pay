@@ -1,14 +1,31 @@
 import mongoose from "mongoose";
 import crypto from "crypto";
 
+
 const gatewayConfigSchema = new mongoose.Schema(
   {
     enabled: { type: Boolean, default: false },
-    // stores gateway specific credentials here (string values), not the raw names
-    config: { type: Object, default: {} },
+
+    
+    config: {
+      type: Object,
+      default: {},
+    },
+
+    schema: {
+      type: [String],
+      default: [],
+    },
+
+    mode: {
+      type: String,
+      enum: ["test", "live"],
+      default: "test",
+    },
   },
   { _id: false }
 );
+
 
 const apiKeySchema = new mongoose.Schema(
   {
@@ -20,13 +37,17 @@ const apiKeySchema = new mongoose.Schema(
   { _id: false }
 );
 
+
 const projectSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     description: { type: String, default: "" },
-    owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    environment: { type: String, enum: ["test", "live"], default: "test" },
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
     callbacks: {
       successUrl: { type: String, default: "" },
@@ -34,21 +55,27 @@ const projectSchema = new mongoose.Schema(
       webhookUrl: { type: String, default: "" },
     },
 
-    apiKeys: { type: [apiKeySchema], default: [] },
-
-   
-    gatewayConfigs: {
-      type: Map,
-      of: gatewayConfigSchema,
-      default: {},
+    apiKeys: {
+      type: [apiKeySchema],
+      default: [],
     },
 
-    
+  
+    gatewayConfigs: {
+      type: Object,       
+      default: {},        
+    },
+
     isActive: { type: Boolean, default: true },
-    settings: { type: Object, default: {} },
+
+    settings: {
+      type: Object,
+      default: {},
+    },
   },
   { timestamps: true }
 );
+
 
 projectSchema.statics.generateKeyPair = function () {
   const keyId = "pk_" + crypto.randomBytes(8).toString("hex");
