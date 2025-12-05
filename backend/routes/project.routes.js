@@ -6,6 +6,7 @@ import {
   getProjectTransactions,
   getProjectRefunds,
   deleteProject,
+  getProjectFull
   
 } from "../controllers/projectInfo.controller.js";
 import updateProjectSettings from "../controllers/projectSettings.controller.js";
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post("/", protect, createProject);
 router.get("/", protect, listProjects);
 router.get("/:id", protect, getProject);
+router.get("/:id/full", protect, getProjectFull);
 
 
 router.get("/:id/stats", protect, getProjectStats);

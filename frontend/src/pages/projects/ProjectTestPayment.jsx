@@ -13,11 +13,18 @@ export default function ProjectTestPayment({ projectId }) {
 
   if (!project) return <div>Loading project...</div>;
 
-  const enabled = Object.entries(project.gatewayConfigs)
-    .filter(([_, val]) => val.enabled)
+  // Normalize gatewayConfigs to plain object
+  const gwConfigs = project.gatewayConfigs instanceof Map
+    ? Object.fromEntries(project.gatewayConfigs)
+    : project.gatewayConfigs || {};
+
+  const enabled = Object.entries(gwConfigs)
+    .filter(([_, val]) => val?.enabled)
     .map(([key]) => key);
 
   return (
-    <Payments projectId={projectId} allowedGateways={enabled} />
+    <div className="bg-black text-white min-h-screen p-6">
+      <Payments projectId={projectId} allowedGateways={enabled} />
+    </div>
   );
 }

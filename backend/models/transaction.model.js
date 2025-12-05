@@ -8,51 +8,22 @@ const transactionSchema = new mongoose.Schema(
       required: true,
     },
 
-      projectId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Project",
-        default : null
-      },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+    },
 
     gateway: {
       type: String,
       required: true,
-      index: true,
     },
 
- 
-    transactionId: {
-      type: String,
-      index: true,
-      default: "",
-    },
-
-    // standard for all gateways
-    gatewayOrderId: {
-      type: String,
-      index: true,
-      default: "",
-    },
-
-    gatewayPaymentId: {
-      type: String,
-      index: true,
-      default: "",
-    },
-
-    
-    cashfreeLinkId: {
-      type: String,
-      index: true,
-      default: "",
-    },
-
-  
-    cashfreeOrderId: {
-      type: String,
-      index: true,
-      default: "",
-    },
+    transactionId: { type: String, default: "" },
+    gatewayOrderId: { type: String, default: "" },
+    gatewayPaymentId: { type: String, default: "" },
+    cashfreeLinkId: { type: String, default: "" },
+    cashfreeOrderId: { type: String, default: "" },
 
     amount: {
       type: Number,
@@ -63,11 +34,13 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       default: "INR",
     },
+
     customer: {
-      name: { type: String, default: "N/A" },
-      email: { type: String, default: "N/A" },
-      phone: { type: String, default: "N/A" },
+      name: String,
+      email: String,
+      phone: String,
     },
+
     status: {
       type: String,
       enum: [
@@ -79,41 +52,17 @@ const transactionSchema = new mongoose.Schema(
         "refunded",
       ],
       default: "pending",
-      index: true,
     },
-
-    paymentInfo: {
-      type: Object,
-      default: {},
-    },
-
-    callbackData: {
-      type: Object,
-      default: {},
-    },
-
-    webhookData: {
-      type: Object,
-      default: {},
-    },
-
-    isWebhookReceived: {
-      type: Boolean,
-      default: false,
-    },
-
-    failureReason: {
-      type: String,
-      default: "",
-    },
-
-    initiatedAt: Date,
-    verifiedAt: Date,
-    refundedAt: Date,
   },
   { timestamps: true }
 );
 
-const Transaction = mongoose.model("Transaction", transactionSchema);
+// ---------------------------------------------
+//           ONLY THESE INDEXES. NO OTHERS.
+// ---------------------------------------------
+transactionSchema.index({ projectId: 1 });
+transactionSchema.index({ projectId: 1, status: 1 });
+transactionSchema.index({ projectId: 1, createdAt: -1 });
 
+const Transaction = mongoose.model("Transaction", transactionSchema);
 export default Transaction;

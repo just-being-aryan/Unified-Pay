@@ -105,17 +105,11 @@ export default function TransactionsTab({ projectId }) {
                   <td className="p-3 font-medium">₹{t.amount}</td>
                   <td className="p-3 capitalize">{t.gateway}</td>
                   <td className="p-3">
-                    <span
-                      className={`px-2 py-1 rounded text-xs ${
-                        t.status === "paid" || t.status === "completed"
-                          ? "bg-green-100 text-green-700"
-                          : t.status === "failed"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-gray-200 text-gray-700"
-                      }`}
-                    >
+                    <span className="px-2 py-1 rounded text-xs bg-gray-200 text-black font-medium">
                       {t.status}
                     </span>
+
+
                   </td>
                   <td className="p-3 text-sm text-gray-700">
                     {new Date(t.createdAt).toLocaleString()}

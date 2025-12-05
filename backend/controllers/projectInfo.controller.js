@@ -4,9 +4,6 @@ import ApiError from "../utils/apiError.js";
 import Project from "../models/project.model.js";
 import Transaction from "../models/transaction.model.js";
 
-/* -----------------------------------------------------------
-   INTERNAL: Validate ownership
-------------------------------------------------------------*/
 const validateOwnership = async (projectId, user) => {
   const project = await Project.findById(projectId);
   if (!project) throw new ApiError(404, "Project not found");
@@ -18,49 +15,71 @@ const validateOwnership = async (projectId, user) => {
   return project;
 };
 
-/* -----------------------------------------------------------
-   GET PROJECT STATS
-------------------------------------------------------------*/
+
 export const getProjectStats = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   await validateOwnership(projectId, req.user);
 
+ 
   const totalTx = await Transaction.countDocuments({ projectId });
 
   const successTx = await Transaction.countDocuments({
     projectId,
-    status: { $in: ["paid", "completed"] },
+    status: { $regex: /^(paid|completed|success|captured)$/i },
   });
 
   const failedTx = await Transaction.countDocuments({
     projectId,
-    status: { $in: ["failed", "cancelled", "error"] },
+    status: { $regex: /^(failed|cancelled|error)$/i },
   });
 
   const totalAmountAgg = await Transaction.aggregate([
-    { $match: { projectId, status: { $in: ["paid", "completed"] } } },
+    {
+      $match: {
+        projectId,
+        status: { $regex: /^(paid|completed|success|captured)$/i },
+      },
+    },
     { $group: { _id: null, total: { $sum: "$amount" } } },
   ]);
-
   const totalAmount = totalAmountAgg[0]?.total || 0;
 
-  // Last 7 days trend
+  
+  const now = new Date();
+  const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
+
   const last7 = await Transaction.aggregate([
     {
       $match: {
         projectId,
-        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        createdAt: { $gte: startDate },
       },
     },
     {
       $group: {
-        _id: { $dayOfMonth: "$createdAt" },
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+        },
         count: { $sum: 1 },
         total: { $sum: "$amount" },
       },
     },
-    { $sort: { "_id": 1 } },
+    { $sort: { _id: 1 } },
   ]);
+
+  // Zero-fill last 7 days
+  const trend7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    const found = last7.find((x) => x._id === iso);
+    trend7Days.push({
+      _id: iso,
+      count: found ? found.count : 0,
+      total: found ? found.total : 0,
+    });
+  }
 
   return res.json({
     success: true,
@@ -69,30 +88,34 @@ export const getProjectStats = asyncHandler(async (req, res) => {
       successful: successTx,
       failed: failedTx,
       totalAmount,
-      trend7Days: last7,
+      trend7Days,
     },
   });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT TRANSACTIONS (Paginated)
-------------------------------------------------------------*/
+
 export const getProjectTransactions = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+ 
+  await validateOwnership(id, req.user);
 
   const page = Number(req.query.page) || 1;
   const limit = Number(req.query.limit) || 20;
 
   const filter = { projectId: id };
 
-  // Status filter
+  
   if (req.query.status && req.query.status !== "all") {
-    filter.status = req.query.status;
+    
+    const status = String(req.query.status).trim();
+    filter.status = { $regex: new RegExp(`^${status}$`, "i") };
   }
 
-  // Gateway filter
+ 
   if (req.query.gateway && req.query.gateway !== "all") {
-    filter.gateway = req.query.gateway;
+    const gw = String(req.query.gateway).trim();
+    filter.gateway = { $regex: new RegExp(`^${gw}$`, "i") };
   }
 
   const skip = (page - 1) * limit;
@@ -111,14 +134,12 @@ export const getProjectTransactions = asyncHandler(async (req, res) => {
     data: items,
     pagination: {
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     },
   });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT REFUNDS
-------------------------------------------------------------*/
+
 export const getProjectRefunds = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   await validateOwnership(projectId, req.user);
@@ -136,17 +157,15 @@ export const getProjectRefunds = asyncHandler(async (req, res) => {
   });
 });
 
-/* -----------------------------------------------------------
-   DELETE PROJECT + ALL PROJECT TRANSACTIONS
-------------------------------------------------------------*/
+
 export const deleteProject = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   await validateOwnership(projectId, req.user);
 
-  // Delete all linked transactions
+ 
   await Transaction.deleteMany({ projectId });
 
-  // Delete project
+  // delete a project
   await Project.findByIdAndDelete(projectId);
 
   return res.json({
@@ -154,3 +173,95 @@ export const deleteProject = asyncHandler(async (req, res) => {
     message: "Project deleted successfully",
   });
 });
+
+
+export const getProjectFull = asyncHandler(async (req, res) => {
+  const projectId = req.params.id;
+  const project = await validateOwnership(projectId, req.user);
+
+  const now = new Date();
+  const startDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 6));
+
+  
+  const [
+    totalTx,
+    successTx,
+    failedTx,
+    totalAmountAgg,
+    last7,
+    txs,
+  ] = await Promise.all([
+    Transaction.countDocuments({ projectId }),
+
+    Transaction.countDocuments({
+      projectId,
+      status: { $regex: /^(paid|completed|success|captured)$/i },
+    }),
+
+    Transaction.countDocuments({
+      projectId,
+      status: { $regex: /^(failed|cancelled|error)$/i },
+    }),
+
+    Transaction.aggregate([
+      {
+        $match: {
+          projectId,
+          status: { $regex: /^(paid|completed|success|captured)$/i },
+        },
+      },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]),
+
+    Transaction.aggregate([
+      {
+        $match: {
+          projectId,
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          count: { $sum: 1 },
+          total: { $sum: "$amount" },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]),
+
+    Transaction.find({ projectId })
+      .sort({ createdAt: -1 })
+      .limit(10),
+  ]);
+
+  // Zero-fill trend7Days
+  const trend7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const iso = d.toISOString().slice(0, 10);
+    const found = last7.find((x) => x._id === iso);
+    trend7Days.push({
+      _id: iso,
+      count: found ? found.count : 0,
+      total: found ? found.total : 0,
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      project,
+      stats: {
+        totalTransactions: totalTx,
+        successful: successTx,
+        failed: failedTx,
+        totalAmount: totalAmountAgg[0]?.total || 0,
+        trend7Days,
+      },
+      transactions: txs,
+    },
+  });
+});
+

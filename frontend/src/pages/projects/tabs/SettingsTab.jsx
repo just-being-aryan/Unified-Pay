@@ -1,6 +1,7 @@
 // src/pages/projects/tabs/SettingsTab.jsx
 import { useState } from "react";
 import api from "@/api/axios";
+import GatewayDrawer from "@/pages/projects/GatewayDrawer"; // adjust import path if needed
 
 export default function SettingsTab({ project }) {
   const [form, setForm] = useState({
@@ -9,6 +10,11 @@ export default function SettingsTab({ project }) {
     callbacks: { ...project.callbacks },
     gateways: JSON.parse(JSON.stringify(project.gatewayConfigs || {})),
   });
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingGateway, setEditingGateway] = useState(null);
+  const [editingFields, setEditingFields] = useState({});
+  const [editingBaseFields, setEditingBaseFields] = useState([]);
 
   const updateField = (path, value) => {
     setForm((prev) => {
@@ -27,31 +33,73 @@ export default function SettingsTab({ project }) {
     });
   };
 
-  const addGateway = (gw) => {
-    setForm((prev) => ({
-      ...prev,
-      gateways: {
-        ...prev.gateways,
-        [gw]: { enabled: true, config: {} },
-      },
-    }));
-  };
-
   const removeGateway = (gw) => {
     const copy = { ...form.gateways };
     delete copy[gw];
     setForm((prev) => ({ ...prev, gateways: copy }));
   };
 
+  const openGatewayDrawer = (gw) => {
+    const existing = form.gateways[gw] || { config: {}, enabled: true };
+    setEditingGateway(gw);
+    // baseFields are known ones per gateway - define minimal baseFields here
+    const baseFieldsMap = {
+      payu: ["PAYU_MERCHANT_KEY", "PAYU_MERCHANT_SALT", "PAYU_BASE_URL"],
+      cashfree: ["CASHFREE_APP_ID", "CASHFREE_SECRET_KEY", "CASHFREE_BASE_URL"],
+      razorpay: ["RAZORPAY_TEST_API_KEY", "RAZORPAY_TEST_API_SECRET"],
+      paytm: ["PAYTM_MID", "PAYTM_MERCHANT_KEY", "PAYTM_MERCHANT_WEBSITE"],
+      paypal: ["PAYPAL_CLIENT_ID", "PAYPAL_SECRET", "PAYPAL_BASE_URL"],
+    };
+
+    const gatewayKeyLower = gw.toLowerCase();
+    const baseFields = baseFieldsMap[gatewayKeyLower] || [];
+
+    // prepare fields: use existing config keys if present, otherwise baseFields
+    const fields = {};
+    (existing.config ? Object.keys(existing.config) : baseFields).forEach((k) => {
+      // if existing.config stored encrypted values, they would be encrypted strings.
+      // The UI expects plain text — ideally the backend returns decrypted values in project fetch.
+      // For now, we show empty string placeholders for encrypted values (user must re-enter).
+      fields[k] = existing.config?.[k] || "";
+    });
+
+    setEditingFields(fields);
+    setEditingBaseFields(baseFields);
+    setDrawerOpen(true);
+  };
+
+  const handleGatewayFieldChange = (k, v) => {
+    setEditingFields((prev) => ({ ...prev, [k]: v }));
+  };
+
+  const markConfigured = (gatewayKey) => {
+    // mark configured in form.gateways
+    setForm((prev) => {
+      const copy = { ...prev };
+      copy.gateways = { ...copy.gateways, [gatewayKey]: { enabled: true, config: { ...editingFields } } };
+      return copy;
+    });
+  };
+
+  const addGatewayFromSelect = (gw) => {
+    // instead of instantly adding, open drawer
+    if (!gw) return;
+    openGatewayDrawer(gw);
+  };
+
   const save = async () => {
-    await api.patch(`/api/projects/${project._id}/settings`, form);
-    alert("Settings updated");
-    window.location.reload();
+    try {
+      await api.patch(`/api/projects/${project._id}/settings`, form);
+      alert("Settings updated");
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Could not save settings");
+    }
   };
 
   return (
     <div className="space-y-6">
-
       <h2 className="text-2xl font-bold">Project Settings</h2>
 
       {/* NAME + DESCRIPTION */}
@@ -94,19 +142,22 @@ export default function SettingsTab({ project }) {
         <h3 className="font-semibold mb-2">Gateways</h3>
 
         {Object.entries(form.gateways).map(([gw, data]) => (
-          <div
-            key={gw}
-            className="border rounded p-4 mb-3 bg-white shadow-sm"
-          >
+          <div key={gw} className="border rounded p-4 mb-3 bg-white shadow-sm">
             <div className="flex justify-between items-center">
               <h4 className="font-bold text-lg">{gw.toUpperCase()}</h4>
 
-              <button
-                className="text-red-600"
-                onClick={() => removeGateway(gw)}
-              >
-                Remove
-              </button>
+              <div className="flex items-center gap-3">
+                <button className="text-sm text-indigo-600" onClick={() => openGatewayDrawer(gw)}>
+                  Edit
+                </button>
+
+                <button
+                  className="text-red-600"
+                  onClick={() => removeGateway(gw)}
+                >
+                  Remove
+                </button>
+              </div>
             </div>
 
             <div className="mt-2">
@@ -135,7 +186,6 @@ export default function SettingsTab({ project }) {
                 </div>
               ))}
 
-              {/* Add new config key */}
               <button
                 className="mt-2 text-blue-600"
                 onClick={() => {
@@ -156,9 +206,7 @@ export default function SettingsTab({ project }) {
       <div>
         <select
           className="border p-2 rounded"
-          onChange={(e) => {
-            if (e.target.value) addGateway(e.target.value);
-          }}
+          onChange={(e) => addGatewayFromSelect(e.target.value)}
         >
           <option value="">Add Gateway...</option>
           <option value="payu">PayU</option>
@@ -175,6 +223,21 @@ export default function SettingsTab({ project }) {
       >
         Save Settings
       </button>
+
+      {/* Gateway Drawer for credentials */}
+      <GatewayDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        gatewayKey={editingGateway}
+        gatewayLabel={editingGateway?.toUpperCase()}
+        fields={editingFields}
+        baseFields={editingBaseFields}
+        onChange={(k, v) => handleGatewayFieldChange(k, v)}
+        markConfigured={() => {
+          markConfigured(editingGateway);
+          setDrawerOpen(false);
+        }}
+      />
     </div>
   );
 }
