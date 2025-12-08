@@ -66,32 +66,6 @@ export default function Step1ProjectInfo({ data, update, next }) {
           />
         </div>
 
-        <div className="mt-4">
-          <label className="text-sm">Environment</label>
-          <div className="flex gap-4 mt-1">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="environment"
-                value="test"
-                checked={data.environment === "test"}
-                onChange={() => handleChange("environment", "test")}
-              />
-              Test
-            </label>
-
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="environment"
-                value="live"
-                checked={data.environment === "live"}
-                onChange={() => handleChange("environment", "live")}
-              />
-              Live
-            </label>
-          </div>
-        </div>
       </div>
 
       <div className="mt-6 flex justify-end">

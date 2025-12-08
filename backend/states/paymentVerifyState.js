@@ -11,10 +11,11 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
   // Gateway adapters MUST return `transactionId` in result.data
   // But during callback we must locate the right transaction
   let extractedRef = 
+    callbackPayload?.txnid ||
     callbackPayload?.ORDERID ||
     callbackPayload?.orderId ||
     callbackPayload?.order_id ||
-    callbackPayload?.txnid ||
+    callbackPayload?.razorpay_order_id ||  // ✅ ADDED FOR RAZORPAY
     callbackPayload?.transactionId ||
     callbackPayload?.token ||
     callbackPayload?.data?.order_id ||

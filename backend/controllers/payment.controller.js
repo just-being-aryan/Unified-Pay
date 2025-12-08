@@ -8,14 +8,10 @@ import { applyProjectGatewayConfig } from "../utils/applyProjectGatewayConfig.js
 
 import { logGatewayResponse } from "../utils/logGatewayResponse.js";
 import Transaction from "../models/transaction.model.js";
+import { generateBrandedInvoice } from "../utils/generateBrandedInvoice.js";
 
-import {generateBrandedInvoice} from "../utils/generateBrandedInvoice.js";
 
-// ======================================================
-// INITIATE PAYMENT
-// ======================================================
 export const initiatePayment = asyncHandler(async (req, res) => {
-
   console.log("\n\n=== INITIATE PAYMENT REQUEST BODY ===");
   console.log(JSON.stringify(req.body, null, 2));
   console.log("======================================\n\n");
@@ -33,7 +29,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
     const normalizedCustomer = {
       name: customer?.name ?? "",
       email: customer?.email ?? "",
-      ...(customer?.phone ? { phone: customer.phone } : {}),
+      ...(customer?.phone ? { phone: customer.phone } : {})
     };
 
     const rawInput = {
@@ -42,29 +38,26 @@ export const initiatePayment = asyncHandler(async (req, res) => {
       currency,
       customer: normalizedCustomer,
       redirect: {
-        successUrl: req.body?.redirect?.successUrl || `${process.env.FRONTEND_BASE}/success`,
-        failureUrl: req.body?.redirect?.failureUrl || `${process.env.FRONTEND_BASE}/failure`,
-        notifyUrl: req.body?.redirect?.notifyUrl,
+        successUrl: req.body?.redirect?.successUrl || `${process.env.FRONTEND_URL}/success`,
+        failureUrl: req.body?.redirect?.failureUrl || `${process.env.FRONTEND_URL}/failure`,
+        notifyUrl: req.body?.redirect?.notifyUrl
       },
       meta: meta || {},
       userId: req.user?._id || req.body.userId,
       config: req.body.config || {},
-      projectId: req.body.projectId || null,
+      projectId: req.body.projectId || null
     };
 
-
     const finalInput = await applyProjectGatewayConfig(rawInput);
-
     const result = await paymentInitiateState(finalInput);
 
-
     return res.status(200).json(result);
+
   } catch (err) {
     console.error("INITIATE PAYMENT ERROR:", err?.response?.data || err?.message || err);
-    
     const payload = {
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message || "Internal server error"
     };
     if (process.env.NODE_ENV !== "production") {
       payload.raw = err?.response?.data || err;
@@ -73,10 +66,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
   }
 });
 
-// ======================================================
-// VERIFY PAYMENT - UNIFIED HANDLER
-// Handles both webhook/redirect AND frontend AJAX callbacks
-// ======================================================
+
 export const verifyPayment = asyncHandler(async (req, res) => {
   console.log("🔥 VERIFY PAYMENT CALLBACK HIT");
   console.log("METHOD:", req.method);
@@ -86,7 +76,6 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
   try {
     const gateway = req.params.gateway;
-  
     let raw = { ...(req.body || {}), ...(req.query || {}) };
 
     const cashfreeLinkId =
@@ -98,9 +87,12 @@ export const verifyPayment = asyncHandler(async (req, res) => {
       raw.ORDERID = cashfreeLinkId;
       raw.orderId = cashfreeLinkId;
       raw.order_id = cashfreeLinkId;
-
       if (raw.data) raw.data.order_id = cashfreeLinkId;
       if (raw.data?.order) raw.data.order.order_id = cashfreeLinkId;
+    }
+
+    if (gateway === "razorpay" && raw.razorpay_order_id) {
+      raw.order_id = raw.razorpay_order_id;
     }
 
     const callbackPayload = raw;
@@ -114,57 +106,55 @@ export const verifyPayment = asyncHandler(async (req, res) => {
 
     console.log("✅ Verification Result:", result);
 
-    // Detect if this is an AJAX request (Razorpay frontend callback)
     const isAjax = 
-      req.headers['content-type']?.includes('application/json') ||
-      req.headers['x-requested-with'] === 'XMLHttpRequest' ||
-      req.method === 'POST' && req.body?.razorpay_payment_id; // Razorpay specific
+  req.headers['content-type']?.includes('application/json') ||
+  req.headers['x-requested-with'] === 'XMLHttpRequest';
 
-    // If AJAX request, return JSON
     if (isAjax) {
       return res.status(200).json({
         ok: true,
         success: true,
         message: "Payment verified",
-        data: result.data,
+        data: result.data
       });
     }
 
-    // Otherwise, redirect (for PayU, Cashfree, PayPal)
-    const frontendSuccess = process.env.FRONTEND_BASE || "http://localhost:5173";
-    const successUrl = `${frontendSuccess}/payments/success?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
-    const failureUrl = `${frontendSuccess}/payments/failure?txnid=${encodeURIComponent(result.data.transactionId)}&status=${encodeURIComponent(result.data.status)}`;
+    const frontend = process.env.FRONTEND_URL || "http://localhost:5173";
+
+    const successUrl =
+      `${frontend}/payments/success?txnid=${encodeURIComponent(result.data.transactionId)}` +
+      `&status=${encodeURIComponent(result.data.status)}`;
+
+    const failureUrl =
+      `${frontend}/payments/failure?txnid=${encodeURIComponent(result.data.transactionId)}` +
+      `&status=${encodeURIComponent(result.data.status)}`;
 
     if (result.data.status === "paid" || result.data.status === "completed") {
       return res.redirect(successUrl);
     } else {
       return res.redirect(failureUrl);
     }
+
   } catch (err) {
     console.error("VERIFY PAYMENT ERROR:", err);
-    
-    // If AJAX, return JSON error
+
     const isAjax = 
       req.headers['content-type']?.includes('application/json') ||
-      req.method === 'POST' && req.body?.razorpay_payment_id;
+      (req.method === 'POST' && req.body?.razorpay_payment_id);
 
     if (isAjax) {
       return res.status(err.statusCode || 500).json({
         ok: false,
         success: false,
-        message: err.message || "Verification failed",
+        message: err.message || "Verification failed"
       });
     }
 
-    // Otherwise redirect to failure
-    const frontendBase = process.env.FRONTEND_BASE || "http://localhost:5173";
+    const frontendBase = process.env.FRONTEND_URL || "http://localhost:5173";
     return res.redirect(`${frontendBase}/payments/failure`);
   }
 });
 
-// ======================================================
-// REFUND PAYMENT
-// ======================================================
 
 export const refundPayment = asyncHandler(async (req, res) => {
   const { transactionId, amount, reason, config } = req.body;
@@ -179,19 +169,17 @@ export const refundPayment = asyncHandler(async (req, res) => {
     requestPayload: { transactionId, amount, reason },
     responsePayload: result,
     statusCode: 200,
-    message: `Refund processed for ${result.gateway || "unknown"}`,
+    message: `Refund processed for ${result.gateway || "unknown"}`
   });
 
   return res.status(200).json({
     success: true,
     message: "Refund processed",
-    data: result,
+    data: result
   });
 });
 
-// ======================================================
-// GET TRANSACTION (FOR SUCCESS PAGE / DASHBOARD)
-// ======================================================
+
 export const getTransaction = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -203,41 +191,35 @@ export const getTransaction = asyncHandler(async (req, res) => {
 
   if (!transaction) throw new ApiError(404, "Transaction not found");
 
-  // If invoice requested → send as PDF
   if (req.query.format === "pdf") {
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=invoice-${transaction.transactionId}.pdf`
-    );
-
+    res.setHeader("Content-Disposition", `attachment; filename=invoice-${transaction.transactionId}.pdf`);
     const pdf = generateBrandedInvoice(transaction);
     return pdf.pipe(res);
   }
 
-  // Default: JSON
   res.status(200).json({
     success: true,
-    transaction,
+    transaction
   });
 });
+
 
 export const getAllPayments = asyncHandler(async (req, res) => {
   const filter = {};
 
-  // If normal merchant, show only THEIR payments
   if (req.user.role !== "admin") {
     filter.userId = req.user._id;
   }
 
-  const payments = await Transaction.find(filter)
-    .sort({ createdAt: -1 });
+  const payments = await Transaction.find(filter).sort({ createdAt: -1 });
 
   res.status(200).json({
     success: true,
     data: payments
   });
 });
+
 
 export const deleteTransaction = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -249,6 +231,6 @@ export const deleteTransaction = asyncHandler(async (req, res) => {
 
   return res.status(200).json({
     success: true,
-    message: "Transaction deleted successfully",
+    message: "Transaction deleted successfully"
   });
 });

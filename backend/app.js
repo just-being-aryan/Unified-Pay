@@ -1,4 +1,4 @@
-// server.js or app.js (your main backend entry file)
+// server.js or app.js - MINIMAL CORS
 
 import express from "express";
 import cors from "cors";
@@ -24,49 +24,59 @@ const app = express();
 app.use(morgan("dev"));
 
 // -----------------------------------------------------------
-// FIXED, STABLE CORS (ONLY THIS – DELETE YOUR OLD CORS BLOCK)
+// NGROK-COMPATIBLE CORS - PROPER CREDENTIALS HANDLING
 // -----------------------------------------------------------
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow non-browser requests (no origin header)
-      if (!origin) return callback(null, true);
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // IMPORTANT: Must echo back the actual origin, NOT "*" when using credentials
+  if (origin) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+  
+  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD");
+  res.header("Access-Control-Allow-Headers", 
+    "Origin,X-Requested-With,Content-Type,Accept,Authorization,authorization," +
+    "x-client-id,x-client-secret,x-api-version,x-razorpay-signature," +
+    "ngrok-skip-browser-warning,user-agent,cache-control,pragma");
+  res.header("Access-Control-Max-Age", "86400"); // 24 hours
+  
+  // Handle preflight
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
-      const allowed = [
-        "http://localhost:5173",
-        "http://localhost:5174",
-      ];
-
-      const isNgrok =
-        typeof origin === "string" &&
-        (origin.includes("ngrok") || origin.includes("ngrok-free"));
-
-      if (allowed.includes(origin) || isNgrok) {
-        return callback(null, true);
-      }
-
-      // Allow all for development safety
-      return callback(null, true);
-    },
-
-    credentials: true,
-
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-Requested-With",
-      "x-client-id",
-      "x-client-secret",
-      "x-api-version",
-      "x-razorpay-signature",
-    ],
-  })
-);
-
-// ❗ REMOVE your old OPTIONS middleware — cors() handles it properly
-// DO NOT PUT ANY CUSTOM OPTIONS HANDLER HERE
+// Also use cors middleware as backup
+app.use(cors({
+  origin: function (origin, callback) {
+    // Always allow - return the requesting origin, not "*"
+    callback(null, origin || true);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With", 
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "authorization",
+    "x-client-id",
+    "x-client-secret",
+    "x-api-version",
+    "x-razorpay-signature",
+    "ngrok-skip-browser-warning",
+    "user-agent",
+    "cache-control",
+    "pragma"
+  ],
+  exposedHeaders: ["*"],
+  maxAge: 86400
+}));
 
 // -----------------------------------------------------------
 // BODY PARSERS

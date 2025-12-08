@@ -71,7 +71,7 @@ const currency = "USD";
         `${process.env.BACKEND_URL}/api/payments/callback/paypal`;
       const cancelUrl =
         redirect.failureUrl ||
-        `${process.env.FRONTEND_BASE || "http://localhost:5173"}/payments/failure`;
+        `${process.env.FRONTEND_URL || "http://localhost:5173"}/payments/failure`;
 
       const body = {
         intent: "CAPTURE",

@@ -8,102 +8,71 @@ import { encryptVal } from "../utils/encryption.js";
    CREATE PROJECT
 ------------------------------------------------------------*/
 export const createProject = asyncHandler(async (req, res) => {
-  console.log("\n===== CREATE PROJECT REQUEST BODY =====");
-  console.log(JSON.stringify(req.body, null, 2));
-  console.log("=======================================\n");
+  const { name, description, callbacks, gateways } = req.body;
 
-  const { name, description, environment, callbacks, gateways } = req.body;
-
-  if (!name) {
-    throw new ApiError(400, "Missing required fields: name ");
-  }
+  if (!name) throw new ApiError(400, "Missing required fields: name");
 
   const normalizedGateways = {};
 
   if (gateways && typeof gateways === "object") {
     for (const [rawKey, val] of Object.entries(gateways)) {
-      const key = String(rawKey).toLowerCase().trim();
-
-      if (!val || typeof val !== "object") {
-        console.warn(`Skipping gateway '${key}' — invalid structure`);
-        continue;
-      }
+      const key = rawKey.toLowerCase().trim();
+      if (!val || typeof val !== "object") continue;
 
       const enabled = !!val.enabled;
-      const cfg = val.fields || {}; // raw fields from frontend
-
+      const cfg = val.fields || {};
       let normalizedConfig = {};
-      let mode = 'live'
+      let mode = "live";
 
       switch (key) {
-        /* -----------------------------------------------------------
-           PAYU
-        ------------------------------------------------------------*/
         case "payu":
           normalizedConfig = {
-            merchantKey: cfg.PAYU_MERCHANT_KEY?.trim() || "",
-            merchantSalt: cfg.PAYU_MERCHANT_SALT?.trim() || "",
-            baseUrl: cfg.PAYU_BASE_URL?.trim() || "",
+            merchantKey: cfg.PAYU_MERCHANT_KEY || "",
+            merchantSalt: cfg.PAYU_MERCHANT_SALT || "",
+            baseUrl: cfg.PAYU_BASE_URL || "",
           };
           break;
 
-        /* -----------------------------------------------------------
-           CASHFREE
-        ------------------------------------------------------------*/
         case "cashfree":
           normalizedConfig = {
-            clientId: cfg.CASHFREE_APP_ID?.trim() || "",
-            clientSecret: cfg.CASHFREE_SECRET_KEY?.trim() || "",
-            baseUrl: cfg.CASHFREE_BASE_URL?.trim() || "",
+            clientId: cfg.CASHFREE_APP_ID || "",
+            clientSecret: cfg.CASHFREE_SECRET_KEY || "",
+            baseUrl: cfg.CASHFREE_BASE_URL || "",
           };
           break;
 
-        /* -----------------------------------------------------------
-           RAZORPAY
-        ------------------------------------------------------------*/
         case "razorpay":
           normalizedConfig = {
-            keyId: cfg.RAZORPAY_TEST_API_KEY?.trim() || "",
-            keySecret: cfg.RAZORPAY_TEST_API_SECRET?.trim() || "",
+            keyId: cfg.RAZORPAY_TEST_API_KEY || "",
+            keySecret: cfg.RAZORPAY_TEST_API_SECRET || "",
           };
           break;
 
-        /* -----------------------------------------------------------
-           PAYPAL
-        ------------------------------------------------------------*/
         case "paypal":
           normalizedConfig = {
-            clientId: cfg.PAYPAL_CLIENT_ID?.trim() || "",
-            secret: cfg.PAYPAL_SECRET?.trim() || "",
-            baseUrl: cfg.PAYPAL_BASE_URL?.trim() || "",
+            clientId: cfg.PAYPAL_CLIENT_ID || "",
+            secret: cfg.PAYPAL_SECRET || "",
+            baseUrl: cfg.PAYPAL_BASE_URL || "",
           };
           break;
 
-        /* -----------------------------------------------------------
-           PAYTM
-        ------------------------------------------------------------*/
         case "paytm":
           normalizedConfig = {
-            mid: cfg.PAYTM_MID?.trim() || "",
-            merchantKey: cfg.PAYTM_MERCHANT_KEY?.trim() || "",
-            website: cfg.PAYTM_MERCHANT_WEBSITE?.trim() || "",
-            industry: cfg.PAYTM_MERCHANT_INDUSTRY?.trim() || "",
-            channelId: cfg.PAYTM_CHANNEL_ID?.trim() || "",
+            mid: cfg.PAYTM_MID || "",
+            merchantKey: cfg.PAYTM_MERCHANT_KEY || "",
+            website: cfg.PAYTM_MERCHANT_WEBSITE || "",
+            industry: cfg.PAYTM_MERCHANT_INDUSTRY || "",
+            channelId: cfg.PAYTM_CHANNEL_ID || "",
           };
           break;
 
-        /* -----------------------------------------------------------
-           FALLBACK → stores raw config
-        ------------------------------------------------------------*/
         default:
           normalizedConfig = { ...cfg };
       }
 
-      // Encrypt values before storing them
       const encryptedConfig = {};
       for (const [k, v] of Object.entries(normalizedConfig)) {
-        encryptedConfig[k] =
-          !v || String(v).trim() === "" ? null : encryptVal(v);
+        encryptedConfig[k] = !v ? null : encryptVal(v);
       }
 
       normalizedGateways[key] = {
@@ -115,10 +84,6 @@ export const createProject = asyncHandler(async (req, res) => {
     }
   }
 
-  console.log("\n===== NORMALIZED GATEWAYS AFTER LOOP =====");
-  console.log(JSON.stringify(normalizedGateways, null, 2));
-  console.log("==========================================\n");
-
   const pair = Project.generateKeyPair();
 
   const newProject = await Project.create({
@@ -127,11 +92,7 @@ export const createProject = asyncHandler(async (req, res) => {
     owner: req.user._id,
     callbacks: callbacks || {},
     apiKeys: [
-      {
-        keyId: pair.keyId,
-        secret: pair.secret,
-        label: "default",
-      },
+      { keyId: pair.keyId, secret: pair.secret, label: "default" },
     ],
     gatewayConfigs: new Map(Object.entries(normalizedGateways)),
   });
@@ -147,17 +108,13 @@ export const createProject = asyncHandler(async (req, res) => {
 });
 
 /* -----------------------------------------------------------
-   GET SINGLE PROJECT
+   GET PROJECT
 ------------------------------------------------------------*/
 export const getProject = asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
 
   if (!project) throw new ApiError(404, "Project not found");
-
-  if (
-    req.user.role !== "admin" &&
-    project.owner.toString() !== req.user._id.toString()
-  ) {
+  if (req.user.role !== "admin" && project.owner.toString() !== req.user._id.toString()) {
     throw new ApiError(403, "Access denied");
   }
 
@@ -165,15 +122,10 @@ export const getProject = asyncHandler(async (req, res) => {
 });
 
 /* -----------------------------------------------------------
-   LIST ALL PROJECTS OF USER
+   LIST USER PROJECTS
 ------------------------------------------------------------*/
 export const listProjects = asyncHandler(async (req, res) => {
-  const filter = {};
-
-  if (req.user.role !== "admin") {
-    filter.owner = req.user._id;
-  }
-
+  const filter = req.user.role === "admin" ? {} : { owner: req.user._id };
   const projects = await Project.find(filter).sort({ createdAt: -1 });
 
   return res.status(200).json({ success: true, data: projects });

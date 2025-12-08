@@ -53,13 +53,17 @@ const transactionSchema = new mongoose.Schema(
       ],
       default: "pending",
     },
+
+   
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
-// ---------------------------------------------
-//           ONLY THESE INDEXES. NO OTHERS.
-// ---------------------------------------------
+
 transactionSchema.index({ projectId: 1 });
 transactionSchema.index({ projectId: 1, status: 1 });
 transactionSchema.index({ projectId: 1, createdAt: -1 });
