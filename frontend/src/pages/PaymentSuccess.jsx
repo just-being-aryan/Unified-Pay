@@ -15,9 +15,10 @@ export default function PaymentSuccess() {
     async function fetchTransaction() {
       try {
         const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/payments/transaction/${txnid}`,
-        { withCredentials: true }
-      );
+          `${import.meta.env.VITE_API_BASE_URL}/api/payments/transaction/${txnid}`,
+          { withCredentials: true }
+        );
+
         setTransaction(res.data.transaction);
       } catch (err) {
         console.error("Error fetching transaction:", err);
@@ -41,6 +42,17 @@ export default function PaymentSuccess() {
     );
   }
 
+  // 🔥 Compute redirect target based on projectId
+  const redirectToDashboard = () => {
+    if (transaction.projectId) {
+      // Came from ProjectTestPaymentPage.jsx → redirect to specific project's dashboard
+      window.location.href = `/dashboard/${transaction.projectId}`;
+    } else {
+      // Came from generic Payments.jsx page
+      window.location.href = `/dashboard`;
+    }
+  };
+
   return (
     <div className="max-w-xl mx-auto mt-24 p-6 bg-white shadow rounded">
       <h1 className="text-2xl font-bold text-green-600">Payment Successful</h1>
@@ -49,19 +61,23 @@ export default function PaymentSuccess() {
         <p><strong>Payment Status:</strong> {transaction.status}</p>
         <p><strong>Amount:</strong> ₹{transaction.amount}</p>
         <p><strong>Order ID (txnid):</strong> {transaction.gatewayOrderId}</p>
-        <p><strong>Payment ID (mihpayid):</strong> {transaction.gatewayPaymentId}</p>
+        <p><strong>Payment ID:</strong> {transaction.gatewayPaymentId}</p>
 
         {transaction.paymentInfo?.product && (
           <p><strong>Product:</strong> {transaction.paymentInfo.product}</p>
         )}
 
-        <p><strong>Verified At:</strong> 
-          {transaction.verifiedAt ? new Date(transaction.verifiedAt).toLocaleString() : "Pending"}
+        <p>
+          <strong>Verified At:</strong>{" "}
+          {transaction.verifiedAt
+            ? new Date(transaction.verifiedAt).toLocaleString()
+            : "Pending"}
         </p>
       </div>
 
+      {/* 🔥 Updated redirect button */}
       <button
-        onClick={() => (window.location.href = "/dashboard")}
+        onClick={redirectToDashboard}
         className="mt-6 px-5 py-2 bg-blue-600 text-white rounded"
       >
         Go to Dashboard

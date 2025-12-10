@@ -11,7 +11,10 @@ export default function PaymentFailure() {
   const amountFromQuery = params.get("amount");
 
   useEffect(() => {
-    if (!txnid) return;
+    if (!txnid) {
+      setLoading(false);
+      return;
+    }
 
     async function fetchTransaction() {
       try {
@@ -34,6 +37,33 @@ export default function PaymentFailure() {
 
   if (loading) return <div>Loading...</div>;
 
+  // 🔥 SAME REDIRECT RULE AS PaymentSuccess
+  const redirectToDashboard = () => {
+    if (transaction?.projectId) {
+      // If the failed payment belongs to a project → open its dashboard
+      window.location.href = `/dashboard/${transaction.projectId}`;
+    } else {
+      // Generic payment failure → go to global dashboard
+      window.location.href = "/dashboard";
+    }
+  };
+
+  if (!transaction) {
+    return (
+      <div className="max-w-xl mx-auto mt-24 p-6 bg-white shadow rounded">
+        <h1 className="text-2xl font-bold text-red-600">Payment Failed</h1>
+        <p className="mt-4 text-gray-700">Could not load payment details.</p>
+
+        <button
+          onClick={redirectToDashboard}
+          className="mt-6 px-5 py-2 bg-blue-600 text-white rounded"
+        >
+          Return to Dashboard
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-xl mx-auto mt-24 p-6 bg-white shadow rounded">
       <h1 className="text-2xl font-bold text-red-600">Payment Failed</h1>
@@ -43,14 +73,12 @@ export default function PaymentFailure() {
       </p>
 
       <div className="mt-4 space-y-2 text-gray-800">
-
         <p>
           <strong>Order ID:</strong> {txnid}
         </p>
 
         <p>
-          <strong>Amount:</strong> ₹
-          {transaction?.amount || amountFromQuery || "N/A"}
+          <strong>Amount:</strong> ₹{transaction?.amount || amountFromQuery || "N/A"}
         </p>
 
         {transaction?.failureReason && (
@@ -60,8 +88,7 @@ export default function PaymentFailure() {
         )}
 
         <p>
-          <strong>Status:</strong>{" "}
-          {transaction?.status || "failed"}
+          <strong>Status:</strong> {transaction?.status || "failed"}
         </p>
 
         {transaction?.verifiedAt && (
@@ -73,7 +100,7 @@ export default function PaymentFailure() {
       </div>
 
       <button
-        onClick={() => (window.location.href = "/dashboard")}
+        onClick={redirectToDashboard}
         className="mt-6 px-5 py-2 bg-blue-600 text-white rounded"
       >
         Return to Dashboard

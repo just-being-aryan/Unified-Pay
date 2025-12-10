@@ -64,6 +64,17 @@ function App() {
             }
           />
 
+          <Route
+            path="/dashboard/:projectId"
+            element={
+          <ProtectedRoute>
+            <ProjectsLayout>
+              <ProjectDashboard />
+            </ProjectsLayout>
+          </ProtectedRoute>
+  }
+/>
+
           {/* PROJECTS ROUTES */}
           <Route
             path="/projects"
