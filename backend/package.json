@@ -13,6 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "@paypal/checkout-server-sdk": "^1.0.3",
+    "@sentry/node": "^7.120.4",
+    "@sentry/tracing": "^7.120.4",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
     "cashfree-pg": "^5.1.0",

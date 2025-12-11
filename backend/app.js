@@ -1,5 +1,4 @@
-// server.js or app.js - MINIMAL CORS
-
+import * as Sentry from "@sentry/node";
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
@@ -18,75 +17,65 @@ import { failStaleTransactions } from "./jobs/failStaleTransactions.js";
 
 const app = express();
 
-// -----------------------------------------------------------
-// LOGGING
-// -----------------------------------------------------------
+/* ------------------------
+   Sentry v7 — middleware
+------------------------- */
+// create handlers (callable middlewares)
+const sentryRequestHandler = Sentry.Handlers.requestHandler();
+const sentryTracingHandler = Sentry.Handlers.tracingHandler();
+
+// Skip Sentry for OPTIONS preflight to avoid interfering with CORS/auth flows
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") return next();
+  return sentryRequestHandler(req, res, next);
+});
+app.use(sentryTracingHandler);
+
+/* ------------------------
+   LOGGING
+------------------------- */
 app.use(morgan("dev"));
 
-// -----------------------------------------------------------
-// NGROK-COMPATIBLE CORS - PROPER CREDENTIALS HANDLING
-// -----------------------------------------------------------
+/* ------------------------
+   NGROK-COMPATIBLE CORS
+------------------------- */
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
-  // IMPORTANT: Must echo back the actual origin, NOT "*" when using credentials
-  if (origin) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  
+  if (origin) res.header("Access-Control-Allow-Origin", origin);
+
   res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD");
-  res.header("Access-Control-Allow-Headers", 
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,DELETE,PATCH,OPTIONS,HEAD"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
     "Origin,X-Requested-With,Content-Type,Accept,Authorization,authorization," +
-    "x-client-id,x-client-secret,x-api-version,x-razorpay-signature," +
-    "ngrok-skip-browser-warning,user-agent,cache-control,pragma");
-  res.header("Access-Control-Max-Age", "86400"); // 24 hours
-  
-  // Handle preflight
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-  
+      "x-client-id,x-client-secret,x-api-version,x-razorpay-signature," +
+      "ngrok-skip-browser-warning,user-agent,cache-control,pragma"
+  );
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+
   next();
 });
 
-// Also use cors middleware as backup
-app.use(cors({
-  origin: function (origin, callback) {
-    // Always allow - return the requesting origin, not "*"
-    callback(null, origin || true);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-  allowedHeaders: [
-    "Origin",
-    "X-Requested-With", 
-    "Content-Type",
-    "Accept",
-    "Authorization",
-    "authorization",
-    "x-client-id",
-    "x-client-secret",
-    "x-api-version",
-    "x-razorpay-signature",
-    "ngrok-skip-browser-warning",
-    "user-agent",
-    "cache-control",
-    "pragma"
-  ],
-  exposedHeaders: ["*"],
-  maxAge: 86400
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => callback(null, origin || true),
+    credentials: true,
+  })
+);
 
-// -----------------------------------------------------------
-// BODY PARSERS
-// -----------------------------------------------------------
+/* ------------------------
+   BODY PARSERS
+------------------------- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// -----------------------------------------------------------
-// ROUTES
-// -----------------------------------------------------------
+/* ------------------------
+   ROUTES
+------------------------- */
 app.get("/", (req, res) => res.send("API is running..."));
 
 cron.schedule("*/5 * * * *", failStaleTransactions);
@@ -98,9 +87,19 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 
-// -----------------------------------------------------------
-// ERROR HANDLERS
-// -----------------------------------------------------------
+app.get("/debug-sentry", (req, res) => {
+  throw new Error("Sentry test error!");
+});
+
+
+/* ------------------------
+   Sentry error handler (must be before custom handlers)
+------------------------- */
+app.use(Sentry.Handlers.errorHandler());
+
+/* ------------------------
+   CUSTOM ERROR HANDLERS
+------------------------- */
 app.use(notFound);
 app.use(errorHandler);
 
