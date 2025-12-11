@@ -5,9 +5,8 @@ import Project from "../models/project.model.js";
 import Transaction from "../models/transaction.model.js";
 import mongoose from "mongoose";
 
-/* -----------------------------------------------------------
-   Validate Ownership
-------------------------------------------------------------*/
+//Validate Ownership
+
 const validateOwnership = async (projectId, user) => {
   const project = await Project.findById(projectId);
   if (!project) throw new ApiError(404, "Project not found");
@@ -19,10 +18,8 @@ const validateOwnership = async (projectId, user) => {
   return project;
 };
 
-/* -----------------------------------------------------------
-   GET PROJECT STATS (NOT used by dashboard)
-   Only keep it for generic API; dashboard uses getProjectFull.
-------------------------------------------------------------*/
+//PROJECT STATS
+
 export const getProjectStats = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   await validateOwnership(projectId, req.user);
@@ -113,9 +110,8 @@ export const getProjectStats = asyncHandler(async (req, res) => {
   });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT TRANSACTIONS (With Filters)
-------------------------------------------------------------*/
+//Filter Transactions
+
 export const getProjectTransactions = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -156,9 +152,9 @@ export const getProjectTransactions = asyncHandler(async (req, res) => {
   });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT REFUNDS
-------------------------------------------------------------*/
+
+ // GET PROJECT REFUNDS
+
 export const getProjectRefunds = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   await validateOwnership(projectId, req.user);
@@ -175,9 +171,8 @@ export const getProjectRefunds = asyncHandler(async (req, res) => {
   return res.json({ success: true, data: refunds });
 });
 
-/* -----------------------------------------------------------
-   DELETE PROJECT + ALL TRANSACTIONS
-------------------------------------------------------------*/
+//DELETE A PROJECT
+
 export const deleteProject = asyncHandler(async (req, res) => {
   const id = req.params.id;
   await validateOwnership(id, req.user);
@@ -190,9 +185,7 @@ export const deleteProject = asyncHandler(async (req, res) => {
   return res.json({ success: true, message: "Project deleted successfully" });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT FULL (USED BY DASHBOARD)
-------------------------------------------------------------*/
+//get full project for dashboard
 export const getProjectFull = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   const project = await validateOwnership(projectId, req.user);

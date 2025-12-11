@@ -39,7 +39,7 @@ export default {
       }
 
       const formattedAmount = Number(amount).toFixed(2);
-      // Prefer backend notify URL for PayU so PayU posts back to our server
+      
       const surl = redirect.notifyUrl || redirect.successUrl || redirect.success || "";
       const furl = redirect.notifyUrl || redirect.failureUrl || redirect.failure || "";
 
@@ -72,7 +72,6 @@ export default {
           formData: {
             ...params,
             hash,
-            // ensure the backend webhook/notify URL is included so PayU can POST server-to-server
             notify_url: redirect?.notifyUrl || redirect?.successUrl || "",
           },
         },
@@ -90,7 +89,6 @@ export default {
   verifyPayment: async (input) => {
     try {
       const { callbackPayload } = input;
-      // PayU posts lots of fields; txnid is the transaction reference we used when creating the txn
       const txnid =
         callbackPayload?.txnid ||
         callbackPayload?.transactionId ||
@@ -100,7 +98,6 @@ export default {
         return { ok: false, message: "Missing txnid in PayU callback" };
       }
 
-      // Determine PayU status - prefer unmappedstatus then status
       const rawStatus =
         (callbackPayload?.unmappedstatus || callbackPayload?.status || "")
           .toString()

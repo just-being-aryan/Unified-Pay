@@ -24,7 +24,7 @@ export default function GatewayDrawer({
   };
 
   const validateFields = () => {
-    // BASE fields
+    
     for (let f of baseFields) {
       if (!fields[f] || fields[f].trim() === "") {
         alert(`Missing required field: ${f}`);
@@ -32,7 +32,7 @@ export default function GatewayDrawer({
       }
     }
 
-    // CUSTOM fields
+    
     for (let [key, val] of Object.entries(fields)) {
       if (val.trim() === "") {
         alert(`Custom field "${key}" cannot be empty`);
@@ -46,7 +46,7 @@ export default function GatewayDrawer({
   const handleDone = () => {
     if (!validateFields()) return;
 
-    // Tell Step2 that this gateway is configured
+   
     markConfigured(gatewayKey);
 
     onClose();
@@ -67,7 +67,7 @@ export default function GatewayDrawer({
 
         <div className="space-y-4">
 
-          {/* Required fields */}
+          
           {baseFields.map((key) => (
             <div key={key}>
               <label className="block text-sm text-gray-600 mb-1">{key}</label>
@@ -80,7 +80,7 @@ export default function GatewayDrawer({
             </div>
           ))}
 
-          {/* Custom fields */}
+         
           {customFields.map(([key, val]) => (
             <div key={key} className="relative">
               <label className="block text-sm text-gray-600 mb-1">{key}</label>

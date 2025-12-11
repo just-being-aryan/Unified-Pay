@@ -68,7 +68,7 @@ export const initiatePayment = asyncHandler(async (req, res) => {
 
 
 export const verifyPayment = asyncHandler(async (req, res) => {
-  console.log("🔥 VERIFY PAYMENT CALLBACK HIT");
+  console.log("VERIFY PAYMENT CALLBACK HIT");
   console.log("METHOD:", req.method);
   console.log("GATEWAY:", req.params.gateway);
   console.log("BODY:", req.body);

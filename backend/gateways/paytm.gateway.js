@@ -1,4 +1,5 @@
-/* eslint-env node */
+//yet to be implemented
+
 
 import axios from "axios";
 import crypto from "crypto";
@@ -9,7 +10,7 @@ export const requiredFields = ["mid", "merchantKey", "merchantWebsite", "mode"];
 
 export default {
   // =========================================================
-  // INITIATE PAYMENT (TxnToken Flow)
+  // INITIATE PAYMENT 
   // =========================================================
   initiatePayment: async (input) => {
     try {
@@ -49,7 +50,7 @@ export default {
         },
       };
 
-      // ✔ Correct signature generation
+     
       const checksum = crypto
         .createHmac("sha256", MERCHANT_KEY)
         .update(JSON.stringify(paytmBody))
@@ -60,7 +61,7 @@ export default {
         head: { signature: checksum },
       };
 
-      // ✔ Correct URL (the REAL reason your txnToken was missing)
+     
       const url = `https://securegw-stage.paytm.in/theia/api/v1/initiateTransaction?mid=${MID}&orderId=${ORDERID}`;
 
       const { data } = await axios.post(url, paytmParams, {

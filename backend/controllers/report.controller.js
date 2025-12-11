@@ -3,13 +3,6 @@
 import asyncHandler from "express-async-handler";
 import Transaction from "../models/transaction.model.js";
 
-/* 
-  STATUS REFERENCE:
-  - paid → money received
-  - failed → no money received
-  - refunded → money returned (subtract from total)
-*/
-
 /* ---------------------------------------------
    1. OVERALL STATS
 ---------------------------------------------- */

@@ -4,16 +4,16 @@ import GatewayCard from "./GatewayCard";
 import GatewayDrawer from "./GatewayDrawer";
 
 export default function Step2GatewayConfig({ data, update, next, back }) {
-  // local copy of gateways so we can edit freely and sync back to parent
+ 
   const [localGateways, setLocalGateways] = useState(data.gateways || {});
   const [drawerOpen, setDrawerOpen] = useState(null);
 
-  // Keep local copy in sync when parent data changes (e.g., coming from server)
+ 
   useEffect(() => {
     setLocalGateways(data.gateways || {});
   }, [data.gateways]);
 
-  // Gateway definitions: label + required base fields
+ 
   const gatewayDefinitions = {
     payu: {
       label: "PayU",
@@ -43,13 +43,13 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
     },
   };
 
-  // Helper: push local state back up to parent projectData
+  
   const syncToParent = (newGateways) => {
     setLocalGateways(newGateways);
     update({ gateways: newGateways });
   };
 
-  // Toggle enable/disable. If enabling, immediately open drawer to configure.
+ 
   const handleToggle = (key, enabled) => {
     const cur = localGateways[key] || { enabled: false, fields: {}, configured: false };
     const updated = {
@@ -57,7 +57,7 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
       [key]: {
         ...cur,
         enabled,
-        // If disabling, clear configured flag
+        
         configured: enabled ? cur.configured : false,
         fields: cur.fields || {},
       },
@@ -65,16 +65,16 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
 
     syncToParent(updated);
 
-    // If user just enabled, open drawer to configure
+ 
     if (enabled) {
       setDrawerOpen(key);
     } else {
-      // closing: ensure drawer closed if it was open
+      
       if (drawerOpen === key) setDrawerOpen(null);
     }
   };
 
-  // Update a single field for a gateway
+ 
   const updateField = (gatewayKey, field, value) => {
     const gw = localGateways[gatewayKey] || { enabled: true, fields: {}, configured: false };
     const newFields = { ...(gw.fields || {}), [field]: value };
@@ -87,7 +87,7 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
     syncToParent(updated);
   };
 
-  // Replace all fields (used for deleting a custom field)
+ 
   const replaceAllFields = (gatewayKey, newFieldsObject) => {
     const gw = localGateways[gatewayKey] || { enabled: true, fields: {}, configured: false };
     const updated = {
@@ -97,8 +97,8 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
     syncToParent(updated);
   };
 
-  // Called by GatewayDrawer when Done is clicked and validation passed.
-  // Sets configured=true and closes drawer.
+  
+ 
   const markConfigured = (gatewayKey) => {
     const gw = localGateways[gatewayKey] || { enabled: true, fields: {}, configured: false };
     const updated = {
@@ -109,7 +109,7 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
     setDrawerOpen(null);
   };
 
-  // Called by Drawer on any field change (or replace all)
+ 
   const handleDrawerChange = (gatewayKey, fieldOrSpecial, value) => {
     if (fieldOrSpecial === "__replace_all__") {
       replaceAllFields(gatewayKey, value || {});
@@ -138,7 +138,7 @@ export default function Step2GatewayConfig({ data, update, next, back }) {
         })}
       </div>
 
-      {/* Drawer modal: only one open at a time */}
+     
       {drawerOpen && (
         <GatewayDrawer
           open={true}

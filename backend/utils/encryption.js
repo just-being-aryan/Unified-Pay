@@ -8,27 +8,20 @@ function keyAvailable() {
   return !!KEY;
 }
 
-/**
- * Development-friendly encryption helper.
- * - If MASTER_ENCRYPTION_KEY is missing, functions will NOT throw:
- *   they return plaintext (no encryption). This keeps local dev fast.
- * - In production you MUST set MASTER_ENCRYPTION_KEY to a 32-byte value
- *   (e.g. 64 hex chars if using randomBytes(32).toString('hex')).
- */
 
 export function encryptVal(str) {
   if (str === null || str === undefined) return null;
 
-  // If no key provided, return value as plain text (dev fallback)
+  
   if (!keyAvailable()) {
-    // eslint-disable-next-line no-console
+    
     console.warn(
       "[ENCRYPTION] MASTER_ENCRYPTION_KEY not set — storing value as plaintext (dev only)."
     );
     return String(str);
   }
 
-  // KEY must be 32 bytes for aes-256-cbc
+  
   const keyBuf = Buffer.from(KEY, "utf8");
   if (keyBuf.length !== 32) {
     throw new Error(
@@ -48,9 +41,9 @@ export function encryptVal(str) {
 export function decryptVal(enc) {
   if (enc === null || enc === undefined) return null;
 
-  // If no key provided, assume stored plaintext and return as-is
+  
   if (!keyAvailable()) {
-    // eslint-disable-next-line no-console
+   
     console.warn("[ENCRYPTION] MASTER_ENCRYPTION_KEY not set — returning plaintext (dev only).");
     return String(enc);
   }

@@ -6,7 +6,7 @@ import CreateProjectWizard from "./CreateProjectWizard";
 import ProjectDashboard from "./ProjectDashboard";
 
 export default function ProjectsLayout({ defaultMode = "dashboard" }) {
-  const { projectId } = useParams();         // ⭐ when coming from /dashboard/:projectId
+  const { projectId } = useParams();       
   const [projects, setProjects] = useState([]);
   const [mode, setMode] = useState(defaultMode);
 
@@ -23,7 +23,7 @@ export default function ProjectsLayout({ defaultMode = "dashboard" }) {
     fetchProjects();
   }, []);
 
-  // We do NOT track selectedProject anymore except for /projects list UI
+  
   const selectedProject =
     projectId && projects.length
       ? projects.find((p) => p._id === projectId)
@@ -32,7 +32,7 @@ export default function ProjectsLayout({ defaultMode = "dashboard" }) {
   return (
     <div className="flex min-h-screen bg-gray-50 -mt-14">
       
-      {/* SIDEBAR */}
+      {/* left sidebar */}
       <div className="w-64 bg-white border-r shadow-sm p-6 flex flex-col">
         <h2 className="text-xl font-bold mb-6">Projects</h2>
 
@@ -60,15 +60,15 @@ export default function ProjectsLayout({ defaultMode = "dashboard" }) {
         </button>
       </div>
 
-      {/* RIGHT PANEL */}
+ 
       <div className="flex-1 p-10">
 
         {mode === "create" && <CreateProjectWizard />}
 
-        {/* ⭐ If we have a projectId → ALWAYS render ProjectDashboard */}
+        
         {projectId && <ProjectDashboard />}
 
-        {/* ⭐ If no projectId and no create mode → show instructions */}
+        
         {!projectId && mode === "dashboard" && (
           <div className="text-gray-600 text-lg">
             Select a project to open its dashboard.

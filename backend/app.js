@@ -97,9 +97,7 @@ app.get("/debug-sentry", (req, res) => {
 ------------------------- */
 app.use(Sentry.Handlers.errorHandler());
 
-/* ------------------------
-   CUSTOM ERROR HANDLERS
-------------------------- */
+
 app.use(notFound);
 app.use(errorHandler);
 

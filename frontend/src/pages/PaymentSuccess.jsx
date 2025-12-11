@@ -42,13 +42,13 @@ export default function PaymentSuccess() {
     );
   }
 
-  // 🔥 Compute redirect target based on projectId
+
   const redirectToDashboard = () => {
     if (transaction.projectId) {
-      // Came from ProjectTestPaymentPage.jsx → redirect to specific project's dashboard
+     
       window.location.href = `/dashboard/${transaction.projectId}`;
     } else {
-      // Came from generic Payments.jsx page
+      
       window.location.href = `/dashboard`;
     }
   };
@@ -75,7 +75,7 @@ export default function PaymentSuccess() {
         </p>
       </div>
 
-      {/* 🔥 Updated redirect button */}
+  
       <button
         onClick={redirectToDashboard}
         className="mt-6 px-5 py-2 bg-blue-600 text-white rounded"

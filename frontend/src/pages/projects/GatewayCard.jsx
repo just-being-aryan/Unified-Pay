@@ -34,7 +34,7 @@ export default function GatewayCard({
             onToggle(gatewayKey, !enabled);
 
             if (!enabled) {
-              // USER JUST ENABLED → OPEN CONFIG IMMEDIATELY
+              
               openDrawer(gatewayKey);
             }
           }}
@@ -43,7 +43,7 @@ export default function GatewayCard({
         </button>
       </div>
 
-      {/* Status Text */}
+      
       <p
         className={`text-sm ${
           configured ? "text-green-600 font-medium" : "text-gray-500"

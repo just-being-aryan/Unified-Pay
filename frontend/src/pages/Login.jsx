@@ -28,7 +28,7 @@ export default function Login() {
             <p className="text-gray-600">Sign in to continue to your account</p>
           </div>
 
-          {/* Social Login Buttons - Priority */}
+        
           {!user && (
             <>
               <div className="space-y-3">
@@ -92,10 +92,10 @@ export default function Login() {
             </>
           )}
 
-          {/* Auth Form */}
+          
           <AuthForm type="login" onSubmit={handleLogin} />
 
-          {/* Footer */}
+          
           <p className="text-center text-sm text-gray-600">
             Don't have an account?{" "}
             <Link to="/register" className="font-semibold text-indigo-600 hover:text-indigo-500 transition-colors">
@@ -104,13 +104,7 @@ export default function Login() {
           </p>
         </div>
 
-        {/* Additional Help */}
-        <p className="text-center mt-6 text-sm text-gray-600">
-          Need help?{" "}
-          <a href="#" className="text-indigo-600 hover:text-indigo-500 transition-colors">
-            Contact Support
-          </a>
-        </p>
+        
       </div>
     </div>
   );

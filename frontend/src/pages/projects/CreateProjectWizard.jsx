@@ -56,7 +56,7 @@ export default function CreateProjectWizard() {
   return (
     <div className="max-w-4xl mx-auto px-6 pt-24 pb-16">
 
-      {/* ----------- STEP INDICATOR ----------- */}
+      
       <div className="flex justify-center mb-12">
         <div className="flex items-center gap-8">
 
@@ -102,7 +102,7 @@ export default function CreateProjectWizard() {
         </div>
       </div>
 
-      {/* ----------- CONTENT ----------- */}
+      
       <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 transition-all duration-300">
 
         {step === 1 && (
@@ -132,7 +132,7 @@ export default function CreateProjectWizard() {
         )}
       </div>
 
-      {/* ----------- GST MODAL ----------- */}
+      
       {showGstModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
           

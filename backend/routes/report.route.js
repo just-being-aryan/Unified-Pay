@@ -16,6 +16,6 @@ router.get("/overall", protect, getOverallStats);
 
 router.get("/gateway-summary", protect, getGatewaySummary);  
 
-router.get("/revenue-trend", protect, isAdmin, getRevenueTrend); // only admin
+router.get("/revenue-trend", protect, isAdmin, getRevenueTrend);
 
 export default router;

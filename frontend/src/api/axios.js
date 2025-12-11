@@ -7,7 +7,7 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 
     "Content-Type": "application/json",
-    "ngrok-skip-browser-warning": "true"  // Important for ngrok
+    "ngrok-skip-browser-warning": "true"  
   },
   withCredentials: true,
 });
@@ -20,8 +20,7 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Log request for debugging
-    console.log('🚀 Request:', config.method?.toUpperCase(), config.url);
+    console.log(' Request:', config.method?.toUpperCase(), config.url);
     
     return config;
   },
@@ -30,11 +29,11 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor with CORS debugging
+
 api.interceptors.response.use(
   (response) => {
-    // Log CORS headers for debugging
-    console.log('✅ Response CORS Headers:', {
+
+    console.log('Response CORS Headers:', {
       'access-control-allow-origin': response.headers['access-control-allow-origin'],
       'access-control-allow-credentials': response.headers['access-control-allow-credentials']
     });
@@ -42,9 +41,9 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Better CORS error logging
+    
     if (error.message?.includes('CORS')) {
-      console.error('❌ CORS Error:', error.message);
+      console.error(' CORS Error:', error.message);
       console.error('Request URL:', error.config?.url);
       console.error('Request Origin:', window.location.origin);
     }

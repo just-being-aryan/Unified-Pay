@@ -33,7 +33,7 @@ export default function ProjectTestPaymentPage() {
     );
   }
 
-  // Determine which gateways are enabled for this project
+ 
   const enabledGateways = Object.entries(project.gatewayConfigs || {})
     .filter(([_, cfg]) => cfg.enabled)
     .map(([key]) => key);
@@ -68,7 +68,7 @@ export default function ProjectTestPaymentPage() {
         )}
       </div>
 
-      {/* Reusing your existing Payments component */}
+    
       <Payments 
         projectId={project._id} 
         allowedGateways={enabledGateways} 

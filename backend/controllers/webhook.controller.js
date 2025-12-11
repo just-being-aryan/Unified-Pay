@@ -5,7 +5,7 @@ import Transaction from "../models/transaction.model.js";
 const webhookController = {
   payu: async (req, res) => {
     try {
-      console.log("🔥 PAYU WEBHOOK:", req.body);
+      console.log("PAYU WEBHOOK:", req.body);
 
       const { orderId, status, amount, gatewayPaymentId } =
         await payuVerify(req.body);
@@ -29,13 +29,13 @@ const webhookController = {
 
   cashfree: async (req, res) => {
     try {
-      console.log("🔥 CASHFREE WEBHOOK RAW:", req.rawBody);
+      console.log("CASHFREE WEBHOOK RAW:", req.rawBody);
 
       const payload = JSON.parse(req.rawBody);
       const verified = cashfreeVerify(req.rawBody, req.headers);
 
       if (!verified) {
-        console.warn("⚠️ Invalid Cashfree signature!");
+        console.warn("Invalid Cashfree signature!");
       }
 
       const data = payload.data;

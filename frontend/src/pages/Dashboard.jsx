@@ -12,7 +12,7 @@ import {
 import { useAuth } from "@/context/useAuth";
 import { Download, Trash2 } from "lucide-react";
 
-/* SHORT ID FORMATTER */
+
 const shortId = (id) => (id ? id.slice(0, 6) + "..." + id.slice(-4) : "-");
 
 export default function Dashboard() {
@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const limit = 10;
 
-  /* LOAD DATA */
+ 
   const loadData = async () => {
     try {
       const [statsRes, gatewayRes, paymentsRes] = await Promise.all([
@@ -98,7 +98,7 @@ export default function Dashboard() {
 
       <MainTabs active={activeTab} setActive={setActiveTab} />
 
-      {/* === PAYMENTS TAB === */}
+      
       {activeTab === "payments" && (
         <>
           <PaymentsTabs
@@ -122,12 +122,11 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* === GATEWAYS TAB === */}
+      
       {activeTab === "gateways" && (
         <GatewaySummaryTable data={gatewaySummary} />
       )}
 
-      {/* === REVENUE TREND (ADMIN ONLY) === */}
       {user.role === "admin" && (
         <RevenueTrendChart data={revenueTrend} error={trendError} />
       )}
@@ -135,9 +134,7 @@ export default function Dashboard() {
   );
 }
 
-/* -------------------------------------------------- */
-/* MAIN TABS */
-/* -------------------------------------------------- */
+
 function MainTabs({ active, setActive }) {
   const tabs = ["payments", "refunds", "gateways", "settings"];
 
@@ -160,9 +157,7 @@ function MainTabs({ active, setActive }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* PAYMENTS SUB-TABS */
-/* -------------------------------------------------- */
+
 function PaymentsTabs({ paymentsSubTab, setPaymentsSubTab }) {
   return (
     <div className="flex gap-4 text-sm mt-3">
@@ -191,9 +186,7 @@ function PaymentsTabs({ paymentsSubTab, setPaymentsSubTab }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* KPI CARDS */
-/* -------------------------------------------------- */
+
 function StatsCards({ stats }) {
   if (!stats) return null;
 
@@ -218,9 +211,7 @@ function StatsCards({ stats }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* TRANSACTION TABLE */
-/* -------------------------------------------------- */
+
 function TransactionTable({ data, page, totalPages, setPage, onDelete }) {
   const getStatusColor = (s) => {
     if (s === "paid") return "text-[#3F00FF] bg-[#eee8ff]";
@@ -288,9 +279,9 @@ function TransactionTable({ data, page, totalPages, setPage, onDelete }) {
                   {new Date(tx.createdAt).toLocaleString()}
                 </td>
 
-                {/* ACTIONS */}
+               
                 <td className="px-3 flex items-center gap-3">
-                  {/* DOWNLOAD INVOICE */}
+                  
                   <button
                     onClick={() => handleInvoiceDownload(tx._id)}
                     className="p-1 hover:bg-gray-200 rounded-md"
@@ -298,7 +289,6 @@ function TransactionTable({ data, page, totalPages, setPage, onDelete }) {
                     <Download size={16} />
                   </button>
 
-                  {/* DELETE BUTTON (real button, not hyperlink) */}
                   <button
                     onClick={() => onDelete(tx._id)}
                     className="p-1 bg-red-500 text-white rounded-md hover:bg-red-600 flex items-center gap-1"
@@ -334,9 +324,7 @@ function TransactionTable({ data, page, totalPages, setPage, onDelete }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* GATEWAY SUMMARY TABLE */
-/* -------------------------------------------------- */
+
 function GatewaySummaryTable({ data }) {
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border mt-4">
@@ -373,9 +361,7 @@ function GatewaySummaryTable({ data }) {
   );
 }
 
-/* -------------------------------------------------- */
-/* REVENUE TREND CHART */
-/* -------------------------------------------------- */
+
 function RevenueTrendChart({ data, error }) {
   return (
     <div className="bg-white p-5 rounded-xl shadow-sm border">

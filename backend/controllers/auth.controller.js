@@ -11,12 +11,10 @@ const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 
-// ----------------------------------------------------
-// Helper: Ensure OAuth user is created properly
-// ----------------------------------------------------
+
 const findOrCreateOAuthUser = async ({ name, email, provider, providerId }) => {
   if (!email) {
-    console.error("❌ OAuth Error: No email returned from provider");
+    console.error(" OAuth Error: No email returned from provider");
     return null;
   }
 
@@ -29,7 +27,7 @@ const findOrCreateOAuthUser = async ({ name, email, provider, providerId }) => {
       role: "viewer",
       provider,
       providerId,
-      password: crypto.randomBytes(20).toString("hex"), // Random hashed placeholder
+      password: crypto.randomBytes(20).toString("hex"), 
     });
   }
 
@@ -37,9 +35,9 @@ const findOrCreateOAuthUser = async ({ name, email, provider, providerId }) => {
 };
 
 
-/* ----------------------------------------------------
-   GOOGLE LOGIN
----------------------------------------------------- */
+
+// GOOGLE LOGIN
+
 export const googleAuth = (req, res) => {
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${qs.stringify({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -56,7 +54,7 @@ export const googleCallback = async (req, res) => {
   try {
     const code = req.query.code;
 
-    // Exchange auth code for token
+    
     const tokenRes = await axios.post(
       "https://oauth2.googleapis.com/token",
       {
@@ -95,9 +93,8 @@ export const googleCallback = async (req, res) => {
 
 
 
-/* ----------------------------------------------------
-   LINKEDIN LOGIN
----------------------------------------------------- */
+//LINKEDIN LOGIN
+
 export const linkedinAuth = (req, res) => {
   const url = `https://www.linkedin.com/oauth/v2/authorization?${qs.stringify({
     response_type: "code",
@@ -127,7 +124,7 @@ export const linkedinCallback = async (req, res) => {
 
     const accessToken = tokenRes.data.access_token;
 
-    // fetch LinkedIn user info
+    
     const profileRes = await axios.get(
       "https://api.linkedin.com/v2/userinfo",
       {
@@ -158,10 +155,8 @@ export const linkedinCallback = async (req, res) => {
 };
 
 
-
-// ----------------------------------------------------
 // FACEBOOK LOGIN
-// ----------------------------------------------------
+
 export const facebookAuth = (req, res) => {
   const params = {
     client_id: process.env.FACEBOOK_APP_ID,

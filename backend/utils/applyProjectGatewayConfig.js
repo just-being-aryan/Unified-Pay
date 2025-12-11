@@ -16,17 +16,13 @@ export async function applyProjectGatewayConfig(input) {
   console.log("PROJECT.gatewayConfigs =", project.gatewayConfigs);
   console.log("Trying gateway =", input.gateway);
 
-  // -------------------------------------------------------
-  // STEP 1 — Decrypt raw fields stored in DB
-  // -------------------------------------------------------
+
   const raw = {};
   for (const [k, enc] of Object.entries(gw.config || {})) {
     raw[k] = enc ? decryptVal(enc) : null;
   }
 
-  // -------------------------------------------------------
-  // STEP 2 — Normalize config depending on gateway
-  // -------------------------------------------------------
+  
   let normalized = {};
 
   switch (input.gateway) {
@@ -81,8 +77,7 @@ export async function applyProjectGatewayConfig(input) {
   // STEP 3 — Safe redirect URL override
   // -------------------------------------------------------
 
-  // Override only if callback URLs include an actual path ("/something")
-  // Avoid overwriting with bare domain like "https://abc.ngrok-free.dev"
+  
   const cb = project.callbacks || {};
 
   const hasValidPath = (url) =>

@@ -3,9 +3,7 @@ import PDFDocument from "pdfkit";
 export const generateBrandedInvoice = (transaction) => {
   const doc = new PDFDocument({ margin: 50 });
 
-  /* ---------------------------------------------- */
-  /* HEADER                                         */
-  /* ---------------------------------------------- */
+ 
   doc
     .fontSize(26)
     .fillColor("#3F00FF")
@@ -13,9 +11,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(1.5);
 
-  /* ---------------------------------------------- */
-  /* TITLE                                          */
-  /* ---------------------------------------------- */
+  
   doc
     .fontSize(20)
     .fillColor("#000")
@@ -28,9 +24,7 @@ export const generateBrandedInvoice = (transaction) => {
     ? new Date(transaction.verifiedAt).toLocaleString()
     : "-";
 
-  /* ---------------------------------------------- */
-  /* BASIC META INFO                                */
-  /* ---------------------------------------------- */
+ 
   doc
     .fontSize(12)
     .fillColor("#555")
@@ -40,9 +34,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(2);
 
-  /* ---------------------------------------------- */
-  /* BILLED TO                                      */
-  /* ---------------------------------------------- */
+  
    const customerName = transaction.customer?.name || "N/A";
    const customerEmail = transaction.customer?.email || "N/A";
    const customerPhone = transaction.customer?.phone || "N/A";
@@ -63,9 +55,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(2);
 
-  /* ---------------------------------------------- */
-  /* PAYMENT SUMMARY BOX                            */
-  /* ---------------------------------------------- */
+
   doc
     .fontSize(14)
     .fillColor("#000")
@@ -73,29 +63,29 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(0.8);
 
-  // Box area
+  
   const boxX = 50;
   const boxY = doc.y;
   const boxWidth = 500;
   const rowHeight = 30;
 
-  // Header row
+
   doc
     .rect(boxX, boxY, boxWidth, rowHeight)
     .fill("#f5f5f5")
     .stroke();
 
-  // Text inside header row
+ 
   doc
     .fillColor("#000")
     .fontSize(12)
     .text("Description", boxX + 10, boxY + 10)
     .text("Amount", boxX + boxWidth - 60, boxY + 10);
 
-  // Move cursor BELOW the box
+  
   doc.y = boxY + rowHeight + 10;
 
-  // Actual payment row
+
   doc
     .fontSize(12)
     .fillColor("#333")
@@ -104,9 +94,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(3);
 
-  /* ---------------------------------------------- */
-  /* TRANSACTION DETAILS (FIXED LEFT ALIGN)          */
-  /* ---------------------------------------------- */
+
   doc
     .fontSize(14)
     .fillColor("#000")
@@ -114,7 +102,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(0.8);
 
-  // RESET X to left margin ALWAYS
+  
   const startX = 50;
 
   doc
@@ -130,9 +118,7 @@ export const generateBrandedInvoice = (transaction) => {
 
   doc.moveDown(3);
 
-  /* ---------------------------------------------- */
-  /* FOOTER                                         */
-  /* ---------------------------------------------- */
+ 
   doc
     .fontSize(11)
     .fillColor("#777")

@@ -24,7 +24,7 @@ export const paymentInitiateState = async (input) => {
     throw new ApiError(400, "userId is required for transaction creation");
   }
 
-  // GET ADAPTER
+  
   const { ok, adapter } = gatewayFactory(gateway);
   if (!ok) throw new ApiError(400, "Unsupported gateway");
 
@@ -36,7 +36,7 @@ export const paymentInitiateState = async (input) => {
   const cleanCustomer = {
   name: customer?.name || "",
   email: customer?.email || "",
-  phone: customer?.phone || "9999999999",  // always assign fallback
+  phone: customer?.phone || "9999999999", 
 };
 
 
@@ -89,9 +89,7 @@ export const paymentInitiateState = async (input) => {
   console.log("-------------------------------\n");
 
 
-  // -----------------------------
-  // CALL ADAPTER
-  // -----------------------------
+  
   const result = await adapter.initiatePayment(adapterInput);
 
   if (!result.ok) {

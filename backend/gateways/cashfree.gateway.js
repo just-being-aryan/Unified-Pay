@@ -29,12 +29,10 @@ export default {
 
       const txnAmount = Number(amount).toFixed(2);
 
-      // -----------------------------------------------------------
-      // 🔥 CRITICAL FIX: Cashfree requires phone ALWAYS + VALID
-      // -----------------------------------------------------------
+  
       let safePhone = customer?.phone;
       if (!safePhone || !/^[0-9]{8,15}$/.test(safePhone)) {
-        safePhone = "9999999999"; // SAFE fallback Cashfree accepts
+        safePhone = "9999999999"; 
       }
 
       const payload = {
@@ -55,7 +53,7 @@ export default {
         cancel_url: redirect.failureUrl,
       };
 
-      console.log("\n📦 CASHFREE PAYLOAD SENT:");
+      console.log("\n CASHFREE PAYLOAD SENT:");
       console.log(JSON.stringify(payload, null, 2));
 
       const resp = await axios.post(`${BASE_URL}/links`, payload, {

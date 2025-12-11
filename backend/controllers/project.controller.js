@@ -4,9 +4,8 @@ import Project from "../models/project.model.js";
 import ApiError from "../utils/apiError.js";
 import { encryptVal } from "../utils/encryption.js";
 
-/* -----------------------------------------------------------
-   CREATE PROJECT
-------------------------------------------------------------*/
+//CREATE PROJECT
+
 export const createProject = asyncHandler(async (req, res) => {
   const { name, description, callbacks, gateways } = req.body;
 
@@ -107,9 +106,8 @@ export const createProject = asyncHandler(async (req, res) => {
   });
 });
 
-/* -----------------------------------------------------------
-   GET PROJECT
-------------------------------------------------------------*/
+//GET PROJECT
+
 export const getProject = asyncHandler(async (req, res) => {
   const project = await Project.findById(req.params.id);
 
@@ -121,9 +119,9 @@ export const getProject = asyncHandler(async (req, res) => {
   return res.status(200).json({ success: true, data: project });
 });
 
-/* -----------------------------------------------------------
-   LIST USER PROJECTS
-------------------------------------------------------------*/
+
+//   LIST USER PROJECTS
+
 export const listProjects = asyncHandler(async (req, res) => {
   const filter = req.user.role === "admin" ? {} : { owner: req.user._id };
   const projects = await Project.find(filter).sort({ createdAt: -1 });

@@ -4,7 +4,7 @@ import Transaction from "../models/transaction.model.js";
 
 export default {
   // =========================================================
-  // INITIATE PAYMENT — Razorpay Standard Checkout (popup)
+  // INITIATE PAYMENT
   // =========================================================
   initiatePayment: async (input) => {
     try {
@@ -57,7 +57,7 @@ export default {
 
       const order = orderRes.data;
 
-      console.log("✨ Razorpay Order Created Successfully ✨");
+      console.log("Razorpay Order Created Successfully ");
       console.log("Order ID:", order.id);
 
       return {
@@ -79,7 +79,7 @@ export default {
         },
       };
     } catch (err) {
-      console.log("\n❌❌ RAZORPAY INITIATE ERROR ❌❌");
+      console.log("\n RAZORPAY INITIATE ERROR");
       console.log("Error message:", err.message);
       console.log("Error response:", err.response?.data);
 
@@ -92,7 +92,7 @@ export default {
   },
 
   // =========================================================
-  // VERIFY PAYMENT — FIXED TO SUPPORT paymentVerifyState.js
+  // VERIFY PAYMENT 
   // =========================================================
   verifyPayment: async ({ callbackPayload }) => {
     try {
@@ -114,11 +114,10 @@ export default {
         return { ok: false, message: "Missing Razorpay verification fields" };
       }
 
-      // 🔥 CRITICAL FIX 🔥
-      // Attach gatewayOrderId so paymentVerifyState.js can extract it
+      
       callbackPayload.gatewayOrderId = razorpay_order_id;
 
-      // Verify signature
+ 
       const body = `${razorpay_order_id}|${razorpay_payment_id}`;
       const expectedSignature = crypto
         .createHmac("sha256", KEY_SECRET)
@@ -140,7 +139,7 @@ export default {
         };
       }
 
-      // Verified success
+      
       return {
         ok: true,
         message: "Razorpay verify success",
@@ -152,7 +151,7 @@ export default {
         },
       };
     } catch (err) {
-      console.log("\n❌❌ RAZORPAY VERIFY ERROR ❌❌");
+      console.log("\nRAZORPAY VERIFY ERROR");
       console.log("Error message:", err.message);
 
       return {

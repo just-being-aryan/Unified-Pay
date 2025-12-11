@@ -1,4 +1,4 @@
-// src/hooks/useProjectFull.js
+
 import useSWR from "swr";
 import api from "@/api/axios";
 
@@ -10,8 +10,8 @@ export default function useProjectFull(projectId) {
     fetcher,
     {
       revalidateOnFocus: false,
-      dedupingInterval: 10_000, // prevent duplicate calls
-      refreshInterval: 0,        // no auto-refresh
+      dedupingInterval: 10_000, 
+      refreshInterval: 0,       
     }
   );
 

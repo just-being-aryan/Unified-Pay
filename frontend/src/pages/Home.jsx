@@ -17,9 +17,7 @@ export default function Home() {
   return (
     <div className="w-full font-[Montserrat] mt-0 ">
 
-      {/* =============================
-      HERO
-      ============================= */}
+     
       <section
         className="
           w-full min-h-screen px-10 md:px-20 flex items-center -mt-14
@@ -77,9 +75,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* =============================
-      SECTION 1 — Why UniPay Exists
-      ============================= */}
+      
       <section className="py-24 px-6 max-w-6xl mx-auto">
         <div className="grid md:grid-cols-2 gap-12 items-center">
 
@@ -110,9 +106,6 @@ POST /api/payments/initiate
         </div>
       </section>
 
-      {/* =============================
-      SECTION 2 — Integration Visual
-      ============================= */}
       <section className="py-24 bg-gray-50 px-6">
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-4xl font-bold mb-6">All Gateways. One Unified Flow.</h2>
@@ -135,9 +128,7 @@ POST /api/payments/initiate
         </div>
       </section>
 
-      {/* =============================
-      SECTION 3 — Use Cases
-      ============================= */}
+      
       <section className="py-24 px-6 max-w-7xl mx-auto">
         <h2 className="text-4xl font-bold text-center mb-14">Built For Every Scenario</h2>
 
@@ -159,9 +150,7 @@ POST /api/payments/initiate
         </div>
       </section>
 
-      {/* =============================
-      CTA
-      ============================= */}
+     
       <section className="py-24 text-center bg-gray-100">
         <h2 className="text-4xl font-bold mb-6">Start Building with UniPay</h2>
         <p className="text-gray-600 text-lg mb-10">

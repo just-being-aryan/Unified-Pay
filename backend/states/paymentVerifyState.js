@@ -8,14 +8,13 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
   const { ok, adapter } = gatewayFactory(gatewayName);
   if (!ok) throw new ApiError(400, "Unsupported gateway");
 
-  // Gateway adapters MUST return `transactionId` in result.data
-  // But during callback we must locate the right transaction
+ 
   let extractedRef = 
     callbackPayload?.txnid ||
     callbackPayload?.ORDERID ||
     callbackPayload?.orderId ||
     callbackPayload?.order_id ||
-    callbackPayload?.razorpay_order_id ||  // ✅ ADDED FOR RAZORPAY
+    callbackPayload?.razorpay_order_id ||  
     callbackPayload?.transactionId ||
     callbackPayload?.token ||
     callbackPayload?.data?.order_id ||
@@ -47,7 +46,7 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
   const transaction = await Transaction.findOne({ $or: conditions });
   if (!transaction) throw new ApiError(404, "Transaction not found");
 
-  // Call adapter verify
+ 
   const result = await adapter.verifyPayment({
     callbackPayload,
     config,
@@ -57,7 +56,7 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
     throw new ApiError(502, result.message || "Gateway verification failed");
   }
 
-  // Normalize and save
+  
   transaction.status = result.data.status;
 
   if (result.data.gatewayPaymentId)

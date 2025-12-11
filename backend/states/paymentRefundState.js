@@ -16,14 +16,13 @@ export const paymentRefundState = async (transactionId, amount, reason, config) 
   const gatewayName = transaction.gateway;
   const gatewayPaymentId = transaction.gatewayPaymentId;
 
-  //select gateway
+ 
   const { ok, adapter } = gatewayFactory(gatewayName);
 
   if (!ok || !adapter) {
     throw new ApiError(400, "Unsupported gateway");
   }
 
-  // Call adapter refund logic
   const result = await adapter.refundPayment({
     gatewayPaymentId,
     amount,
@@ -35,7 +34,7 @@ export const paymentRefundState = async (transactionId, amount, reason, config) 
     throw new ApiError(500, result.message || "Refund failed");
   }
 
-  // Update transaction status
+  
   transaction.status = "refunded";
   transaction.refundInfo = result.data;
   transaction.refundedAt = new Date();  

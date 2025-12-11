@@ -37,13 +37,12 @@ export default function PaymentFailure() {
 
   if (loading) return <div>Loading...</div>;
 
-  // 🔥 SAME REDIRECT RULE AS PaymentSuccess
+ 
   const redirectToDashboard = () => {
     if (transaction?.projectId) {
-      // If the failed payment belongs to a project → open its dashboard
+     
       window.location.href = `/dashboard/${transaction.projectId}`;
     } else {
-      // Generic payment failure → go to global dashboard
       window.location.href = "/dashboard";
     }
   };

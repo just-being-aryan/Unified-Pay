@@ -89,7 +89,7 @@ const currency = "USD";
         application_context: {
           brand_name: "UnifiedPay",
           user_action: "PAY_NOW",
-          return_url: returnUrl, // backend callback -> verifyPayment -> redirect to FE
+          return_url: returnUrl, 
           cancel_url: cancelUrl,
         },
       };
@@ -141,17 +141,15 @@ const currency = "USD";
   },
 
   // =========================================================
-  // VERIFY PAYMENT (PayPal capture)
+  // VERIFY PAYMENT 
   // =========================================================
   verifyPayment: async ({ callbackPayload }) => {
     try {
       const { BASE_URL } = getPayPalConfig();
       const accessToken = await getPayPalAccessToken();
 
-      // paymentVerifyState already extracts token into extractedTxnId and finds Transaction.
-      // Here we just need the order id from callback.
+    
       const orderId =
-        callbackPayload?.token || // typical PayPal return ?token=ORDER_ID
         callbackPayload?.orderId ||
         callbackPayload?.order_id ||
         null;
@@ -160,7 +158,7 @@ const currency = "USD";
         throw new Error("Missing PayPal order id (token) in callback");
       }
 
-      // Capture the order
+      
       const captureRes = await axios.post(
         `${BASE_URL}/v2/checkout/orders/${orderId}/capture`,
         {},
@@ -176,7 +174,7 @@ const currency = "USD";
 
       const status = capture.status === "COMPLETED" ? "paid" : "failed";
 
-      // Extract payment id + amount
+      
       let gatewayPaymentId = null;
       let amount = null;
 
@@ -188,7 +186,7 @@ const currency = "USD";
           amount = parseFloat(payment.amount.value);
         }
       } catch (e) {
-        // ignore parsing issues, we'll just skip amount override
+        console.log(e)
       }
 
       return {
@@ -216,7 +214,7 @@ const currency = "USD";
   // REFUND (stub for now)
   // =========================================================
   refundPayment: async () => {
-    // You haven't wired refunds yet. Keep this simple stub
+   
     return {
       ok: false,
       message: "PayPal refund not implemented yet",

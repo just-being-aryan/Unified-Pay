@@ -6,7 +6,7 @@ export default function cashfreeVerify(rawBody, headers) {
   try {
     const providedSignature = headers["x-cf-signature"];
     if (!providedSignature) {
-      console.warn("⚠️ Cashfree webhook missing signature!");
+      console.warn(" Cashfree webhook missing signature!");
       return false;
     }
 
