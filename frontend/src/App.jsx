@@ -106,15 +106,27 @@ function App() {
           />
 
           <Route
-  path="/projects/:id"
-  element={
-    <ProtectedRoute>
-      <ProjectsLayout>
-        <ProjectDashboard />
-      </ProjectsLayout>
-    </ProtectedRoute>
-  }
-/>
+            path="/projects/:id"
+            element={
+              <ProtectedRoute>
+                <ProjectsLayout>
+                  <ProjectDashboard />
+                </ProjectsLayout>
+              </ProtectedRoute>
+            }
+          />
+
+ 
+          <Route
+          path="/projects/:id/test-payment"
+          element={
+            <ProtectedRoute>
+              <ProjectsLayout>
+                <ProjectTestPaymentPage />
+              </ProjectsLayout>
+            </ProtectedRoute>
+          }
+        />
 
         </Routes>
       </div>

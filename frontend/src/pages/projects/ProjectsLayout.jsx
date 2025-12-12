@@ -4,45 +4,42 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import api from "@/api/axios";
 import ProjectDashboard from "./ProjectDashboard";
 
-export default function ProjectsLayout() {
-  const { id } = useParams();        // ✅ FIX: param must be "id" not "projectId"
+export default function ProjectsLayout({ children }) {
+  const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [projects, setProjects] = useState([]);
 
   const isCreatePage = location.pathname === "/projects/create";
-
-  // If on create page → do NOT render sidebar layout
-  if (isCreatePage) return null;
+  if (isCreatePage) return null; // standalone
 
   useEffect(() => {
     const fetchProjects = async () => {
       try {
         const res = await api.get("/api/projects");
-        const valid = (res.data.data || []).filter((p) => p && p.name);
-        setProjects(valid);
-      } catch (e) {
-        console.error(e);
+        setProjects(res.data.data || []);
+      } catch (err) {
+        console.error(err);
       }
     };
     fetchProjects();
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-gray-50 -mt-14">
+    <div className="flex h-[calc(100vh-120px)] bg-gray-50 -mt-14 overflow-hidden">
 
-      {/* SIDEBAR */}
-      <div className="w-64 bg-white border-r shadow-sm p-6 flex flex-col">
+      {/* SIDEBAR (scrolls independently) */}
+      <div className="w-64 bg-white border-r shadow-sm p-6 flex flex-col overflow-y-auto">
         <h2 className="text-xl font-bold mb-6">Projects</h2>
 
-        <div className="space-y-2 overflow-y-auto">
+        <div className="space-y-2">
           {projects.map((p) => (
             <div
               key={p._id}
               onClick={() => navigate(`/projects/${p._id}`)}
               className={`p-3 rounded-lg cursor-pointer border ${
-                p._id === id
+                id === p._id
                   ? "bg-black text-white border-black"
                   : "bg-gray-100 hover:bg-gray-200 border-gray-200"
               }`}
@@ -60,16 +57,16 @@ export default function ProjectsLayout() {
         </button>
       </div>
 
-      {/* RIGHT PANEL */}
-      <div className="flex-1 p-10">
-        {id ? (
-          <ProjectDashboard />
-        ) : (
-          <div className="text-gray-600 text-lg">
-            Select a project to open its dashboard.
-          </div>
-        )}
+      {/* MAIN PANEL (scrolls independently) */}
+      <div className="flex-1 overflow-y-auto p-10">
+        {children
+          ? children
+          : id
+          ? <ProjectDashboard />
+          : <div className="text-gray-600 text-lg">Select a project.</div>
+        }
       </div>
+
     </div>
   );
 }

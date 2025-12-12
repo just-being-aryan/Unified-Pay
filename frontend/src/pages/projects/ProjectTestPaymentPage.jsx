@@ -1,19 +1,19 @@
 // src/pages/projects/ProjectTestPaymentPage.jsx
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "@/api/axios";
 import Payments from "@/pages/Payments";
 
 export default function ProjectTestPaymentPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api.get(`/api/projects/${id}`)
-      .then(res => {
-        setProject(res.data.data);
-      })
+      .then(res => setProject(res.data.data))
       .catch(err => {
         console.error("Failed to load project:", err);
         alert("Unable to load project");
@@ -33,7 +33,6 @@ export default function ProjectTestPaymentPage() {
     );
   }
 
- 
   const enabledGateways = Object.entries(project.gatewayConfigs || {})
     .filter(([_, cfg]) => cfg.enabled)
     .map(([key]) => key);
@@ -41,14 +40,13 @@ export default function ProjectTestPaymentPage() {
   return (
     <div className="p-10 max-w-2xl mx-auto">
 
-      <div className="mb-6">
-        <Link 
-          to={`/projects`}
-          className="text-blue-600 hover:underline"
-        >
-          ← Back to Projects
-        </Link>
-      </div>
+      {/* FIXED BACK BUTTON */}
+      <button
+        onClick={() => navigate(`/projects/${id}`)}
+        className="px-4 py-2 bg-white-200 rounded-lg hover:bg-gray-300 transition mb-6"
+      >
+        ← Back to Project Dashboard
+      </button>
 
       <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
       <p className="text-gray-600 mb-6">
@@ -68,11 +66,7 @@ export default function ProjectTestPaymentPage() {
         )}
       </div>
 
-    
-      <Payments 
-        projectId={project._id} 
-        allowedGateways={enabledGateways} 
-      />
+      <Payments projectId={project._id} allowedGateways={enabledGateways} />
 
     </div>
   );
