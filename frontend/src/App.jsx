@@ -14,7 +14,6 @@ import CreateProjectWizard from "@/pages/projects/CreateProjectWizard";
 import ProjectTestPaymentPage from "@/pages/projects/ProjectTestPaymentPage";
 import ProjectDashboard from "@/pages/projects/ProjectDashboard";
 
-
 function App() {
   return (
     <Router>
@@ -35,15 +34,6 @@ function App() {
           {/* Payment Redirect Pages */}
           <Route path="/payments/success" element={<PaymentSuccess />} />
           <Route path="/payments/failure" element={<PaymentFailure />} />
-          <Route
-            path="/projects/:id"
-            element={
-              <ProtectedRoute>
-                <ProjectDashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route path="/projects/:id/test-payment" element={<ProjectTestPaymentPage />} />
 
           {/* Protected Pages */}
           <Route
@@ -64,18 +54,14 @@ function App() {
             }
           />
 
-          <Route
-            path="/dashboard/:projectId"
-            element={
-          <ProtectedRoute>
-            <ProjectsLayout>
-              <ProjectDashboard />
-            </ProjectsLayout>
-          </ProtectedRoute>
-  }
-/>
+          {/** ───────────────────────────────────────────────
+           *  PROJECTS SYSTEM (WITH SIDEBAR)
+           *  `/dashboard/:projectId` = OPEN PROJECT
+           *  `/projects` = list
+           *  `/projects/create` = STANDALONE WIZARD
+           *  ─────────────────────────────────────────────── */}
 
-          {/* PROJECTS ROUTES */}
+          {/* PROJECT LIST (SIDEBAR + empty view) */}
           <Route
             path="/projects"
             element={
@@ -85,6 +71,31 @@ function App() {
             }
           />
 
+          {/* PROJECT DASHBOARD (SIDEBAR + PROJECT VIEW) — CORRECT ROUTE */}
+          <Route
+            path="/dashboard/:projectId"
+            element={
+              <ProtectedRoute>
+                <ProjectsLayout>
+                  <ProjectDashboard />
+                </ProjectsLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* TEST PAYMENT (still part of project dashboard ecosystem) */}
+          <Route
+            path="/dashboard/:projectId/test-payment"
+            element={
+              <ProtectedRoute>
+                <ProjectsLayout>
+                  <ProjectTestPaymentPage />
+                </ProjectsLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* CREATE PROJECT → NO SIDEBAR (STANDALONE PAGE) */}
           <Route
             path="/projects/create"
             element={
@@ -93,6 +104,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          <Route
+  path="/projects/:id"
+  element={
+    <ProtectedRoute>
+      <ProjectsLayout>
+        <ProjectDashboard />
+      </ProjectsLayout>
+    </ProtectedRoute>
+  }
+/>
 
         </Routes>
       </div>

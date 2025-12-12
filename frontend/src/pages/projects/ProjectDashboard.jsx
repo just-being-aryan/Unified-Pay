@@ -11,16 +11,16 @@ import RefundsTab from "./tabs/RefundsTab";
 import SettingsTab from "./tabs/SettingsTab";
 
 export default function ProjectDashboard() {
-  const { projectId } = useParams();
+  const { id } = useParams();   // ✅ FIX: use "id" not "projectId"
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  const { project, stats, loading } = useProjectFull(projectId);
+  const { project, stats, loading } = useProjectFull(id);
   const currentProject = project;
 
   const handleDeleteProject = async () => {
     if (!confirm("Are you sure you want to permanently delete this project?")) return;
     try {
-      await api.delete(`/api/projects/${projectId}`);
+      await api.delete(`/api/projects/${id}`);
       window.location.href = "/projects";
     } catch (err) {
       console.error(err);
@@ -51,7 +51,7 @@ export default function ProjectDashboard() {
 
           <button
             onClick={() =>
-              (window.location.href = `/projects/${projectId}/test-payment`)
+              (window.location.href = `/projects/${id}/test-payment`)
             }
             className="px-4 py-2 bg-black text-white rounded-lg hover:opacity-90"
           >
@@ -81,12 +81,10 @@ export default function ProjectDashboard() {
       )}
 
       {activeTab === "transactions" && (
-        <TransactionsTab projectId={projectId} />
+        <TransactionsTab projectId={id} />
       )}
 
-      {activeTab === "refunds" && (
-        <RefundsTab projectId={projectId} />
-      )}
+      {activeTab === "refunds" && <RefundsTab projectId={id} />}
 
       {activeTab === "settings" && (
         <SettingsTab project={currentProject} />

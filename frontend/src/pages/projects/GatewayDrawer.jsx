@@ -1,5 +1,6 @@
 // src/pages/projects/GatewayDrawer.jsx
-import { X, Trash2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, Trash2, PlusCircle } from "lucide-react";
 
 export default function GatewayDrawer({
   open,
@@ -13,9 +14,19 @@ export default function GatewayDrawer({
 }) {
   if (!open) return null;
 
+  const [errors, setErrors] = useState({});
+  const firstErrorRef = useRef(null);
+
   const customFields = Object.entries(fields).filter(
     ([key]) => !baseFields.includes(key)
   );
+
+  // Auto-scroll to the first error
+  useEffect(() => {
+    if (firstErrorRef.current) {
+      firstErrorRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [errors]);
 
   const deleteField = (key) => {
     const newFields = { ...fields };
@@ -24,32 +35,37 @@ export default function GatewayDrawer({
   };
 
   const validateFields = () => {
-    
-    for (let f of baseFields) {
+    const newErrors = {};
+
+    // Validate base fields
+    baseFields.forEach((f) => {
       if (!fields[f] || fields[f].trim() === "") {
-        alert(`Missing required field: ${f}`);
-        return false;
+        newErrors[f] = `${f} is required`;
       }
-    }
+    });
 
-    
-    for (let [key, val] of Object.entries(fields)) {
-      if (val.trim() === "") {
-        alert(`Custom field "${key}" cannot be empty`);
-        return false;
+    // Validate custom fields
+    Object.entries(fields).forEach(([key, val]) => {
+      if (!val || val.trim() === "") {
+        newErrors[key] = `${key} cannot be empty`;
       }
-    }
+    });
 
-    return true;
+    setErrors(newErrors);
+
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleDone = () => {
     if (!validateFields()) return;
 
-   
     markConfigured(gatewayKey);
-
     onClose();
+  };
+
+  const addCustomField = () => {
+    const randomKey = `custom_${Date.now()}`;
+    onChange(randomKey, "");
   };
 
   return (
@@ -65,49 +81,62 @@ export default function GatewayDrawer({
 
         <h2 className="text-2xl font-semibold mb-4">{gatewayLabel} Settings</h2>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
 
-          
-          {baseFields.map((key) => (
-            <div key={key}>
-              <label className="block text-sm text-gray-600 mb-1">{key}</label>
-              <input
-                value={fields[key] || ""}
-                onChange={(e) => onChange(key, e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-                placeholder={key}
-              />
-            </div>
-          ))}
+          {/* BASE FIELDS */}
+          {baseFields.map((key) => {
+            const hasError = errors[key];
+            return (
+              <div key={key} ref={hasError && !firstErrorRef.current ? firstErrorRef : null}>
+                <label className="block text-sm text-gray-700 mb-1">{key}</label>
+                <input
+                  value={fields[key] || ""}
+                  onChange={(e) => onChange(key, e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border transition ${
+                    hasError ? "border-red-500 bg-red-50" : "border-gray-300"
+                  }`}
+                  placeholder={key}
+                />
+                {hasError && <p className="text-red-500 text-xs mt-1">{hasError}</p>}
+              </div>
+            );
+          })}
 
-         
-          {customFields.map(([key, val]) => (
-            <div key={key} className="relative">
-              <label className="block text-sm text-gray-600 mb-1">{key}</label>
-              <input
-                value={val}
-                onChange={(e) => onChange(key, e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-
-              <button
-                className="absolute right-2 top-[38px] text-red-500 hover:text-red-700"
-                onClick={() => deleteField(key)}
+          {/* CUSTOM FIELDS */}
+          {customFields.map(([key, val]) => {
+            const hasError = errors[key];
+            return (
+              <div key={key} className="relative"
+                ref={hasError && !firstErrorRef.current ? firstErrorRef : null}
               >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          ))}
+                <label className="block text-sm text-gray-700 mb-1">{key}</label>
 
+                <input
+                  value={val}
+                  onChange={(e) => onChange(key, e.target.value)}
+                  className={`w-full px-3 py-2 rounded-lg border transition ${
+                    hasError ? "border-red-500 bg-red-50" : "border-gray-300"
+                  }`}
+                />
+
+                <button
+                  className="absolute right-2 top-[38px] text-red-500 hover:text-red-700"
+                  onClick={() => deleteField(key)}
+                >
+                  <Trash2 size={18} />
+                </button>
+
+                {hasError && <p className="text-red-500 text-xs mt-1">{hasError}</p>}
+              </div>
+            );
+          })}
+
+          {/* ADD CUSTOM FIELD BUTTON */}
           <button
-            className="text-indigo-600 text-sm"
-            onClick={() => {
-              const key = prompt("Enter key name:");
-              if (!key) return;
-              onChange(key, "");
-            }}
+            className="flex items-center gap-1 text-indigo-600 text-sm font-medium hover:text-indigo-800"
+            onClick={addCustomField}
           >
-            + Add custom field
+            <PlusCircle size={16} /> Add custom field
           </button>
 
           <div className="pt-6 flex justify-end">
