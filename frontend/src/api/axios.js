@@ -49,8 +49,7 @@ api.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+    console.warn("401 received, token may be invalid");
     }
     
     return Promise.reject(error);

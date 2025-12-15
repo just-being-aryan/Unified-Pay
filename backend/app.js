@@ -20,21 +20,18 @@ import { failStaleTransactions } from "./jobs/failStaleTransactions.js";
 
 const app = express();
 
-/* ------------------------------------------------
-   FIX: CORS MUST BE FIRST, BEFORE ANY MIDDLEWARE
--------------------------------------------------- */
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://unified-pay-ten.vercel.app/", 
+    ],
     credentials: true,
     methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
   })
 );
-// app.options("*", cors());
 
-/* ------------------------
-   Sentry v7 — middleware
-------------------------- */
 const sentryRequestHandler = Sentry.Handlers.requestHandler();
 const sentryTracingHandler = Sentry.Handlers.tracingHandler();
 
