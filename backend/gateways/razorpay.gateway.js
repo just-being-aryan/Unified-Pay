@@ -1,6 +1,7 @@
 import axios from "axios";
 import crypto from "crypto";
-import Transaction from "../models/transaction.model.js";
+
+export const requiredFields = ["RAZORPAY_TEST_API_KEY", "RAZORPAY_TEST_API_SECRET"];
 
 export default {
   // =========================================================
@@ -8,17 +9,6 @@ export default {
   // =========================================================
   initiatePayment: async (input) => {
     try {
-      const KEY_ID = process.env.RAZORPAY_TEST_API_KEY;
-      const KEY_SECRET = process.env.RAZORPAY_TEST_API_SECRET;
-
-      console.log("\n=========== RAZORPAY INITIATE ===========");
-      console.log("Razorpay Key ID present:", !!KEY_ID);
-      console.log("Razorpay Secret present:", !!KEY_SECRET);
-
-      if (!KEY_ID || !KEY_SECRET) {
-        return { ok: false, message: "Missing Razorpay API keys" };
-      }
-
       const {
         amount,
         currency = "INR",
@@ -26,9 +16,17 @@ export default {
         customer = {},
         redirect = {},
         meta = {},
+        config = {},
       } = input;
 
-      console.log("Input received:", input);
+      const KEY_ID =
+        config.RAZORPAY_TEST_API_KEY || process.env.RAZORPAY_TEST_API_KEY;
+      const KEY_SECRET =
+        config.RAZORPAY_TEST_API_SECRET || process.env.RAZORPAY_TEST_API_SECRET;
+
+      if (!KEY_ID || !KEY_SECRET) {
+        return { ok: false, message: "Missing Razorpay API keys" };
+      }
 
       if (!amount || !transactionId) {
         return { ok: false, message: "Missing amount or transactionId" };
@@ -40,25 +38,26 @@ export default {
         receipt: transactionId,
         notes: {
           transactionId,
-          customer_name: customer.name,
-          customer_email: customer.email,
-          customer_phone: customer.phone,
           description: meta.description || "Payment",
         },
       };
 
-      console.log("Creating Razorpay order with payload:", orderPayload);
-
       const orderRes = await axios.post(
         "https://api.razorpay.com/v1/orders",
         orderPayload,
-        { auth: { username: KEY_ID, password: KEY_SECRET } }
+        {
+          auth: {
+            username: KEY_ID,
+            password: KEY_SECRET,
+          },
+        }
       );
 
       const order = orderRes.data;
 
-      console.log("Razorpay Order Created Successfully ");
-      console.log("Order ID:", order.id);
+      if (!order?.id) {
+        return { ok: false, message: "Invalid Razorpay order response" };
+      }
 
       return {
         ok: true,
@@ -69,20 +68,17 @@ export default {
           orderId: order.id,
           amount: order.amount,
           currency,
-          transactionId,
           callbackUrl: redirect.notifyUrl,
           prefill: {
-            name: customer.name,
-            email: customer.email,
-            contact: customer.phone,
+            name: customer.name || "",
+            email: customer.email || "",
+            contact: customer.phone || "",
           },
+          gatewayOrderId: order.id,
+          raw: order,
         },
       };
     } catch (err) {
-      console.log("\n RAZORPAY INITIATE ERROR");
-      console.log("Error message:", err.message);
-      console.log("Error response:", err.response?.data);
-
       return {
         ok: false,
         message: "Razorpay initiate error",
@@ -92,32 +88,31 @@ export default {
   },
 
   // =========================================================
-  // VERIFY PAYMENT 
+  // VERIFY PAYMENT
   // =========================================================
-  verifyPayment: async ({ callbackPayload }) => {
+  verifyPayment: async ({ callbackPayload, config }) => {
     try {
-
-      callbackPayload.order_id = callbackPayload.razorpay_order_id;
-
-      console.log("\n=========== RAZORPAY VERIFY ===========");
-      console.log("Callback Payload:", JSON.stringify(callbackPayload, null, 2));
-
-      const KEY_SECRET = process.env.RAZORPAY_TEST_API_SECRET;
+      const KEY_SECRET =
+        config?.RAZORPAY_TEST_API_SECRET ||
+        process.env.RAZORPAY_TEST_API_SECRET;
 
       const {
         razorpay_order_id,
         razorpay_payment_id,
-        razorpay_signature
+        razorpay_signature,
       } = callbackPayload;
 
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-        return { ok: false, message: "Missing Razorpay verification fields" };
+      if (
+        !razorpay_order_id ||
+        !razorpay_payment_id ||
+        !razorpay_signature
+      ) {
+        return {
+          ok: false,
+          message: "Missing Razorpay verification fields",
+        };
       }
 
-      
-      callbackPayload.gatewayOrderId = razorpay_order_id;
-
- 
       const body = `${razorpay_order_id}|${razorpay_payment_id}`;
       const expectedSignature = crypto
         .createHmac("sha256", KEY_SECRET)
@@ -126,39 +121,35 @@ export default {
 
       const isValid = expectedSignature === razorpay_signature;
 
-      if (!isValid) {
-        return {
-          ok: true,
-          message: "Invalid Razorpay signature",
-          data: {
-            status: "failed",
-            gatewayOrderId: razorpay_order_id,
-            gatewayPaymentId: razorpay_payment_id,
-            transactionId: razorpay_order_id,
-          },
-        };
-      }
-
-      
       return {
         ok: true,
-        message: "Razorpay verify success",
+        message: "Razorpay verification completed",
         data: {
-          status: "paid",
-          gatewayOrderId: razorpay_order_id,
+          status: isValid ? "paid" : "failed",
           gatewayPaymentId: razorpay_payment_id,
-          transactionId: razorpay_order_id,
         },
+        raw: callbackPayload,
       };
     } catch (err) {
-      console.log("\nRAZORPAY VERIFY ERROR");
-      console.log("Error message:", err.message);
-
       return {
         ok: false,
         message: "Razorpay verify error",
-        raw: err.response?.data || err.message,
+        raw: err.message,
       };
     }
+  },
+
+  // =========================================================
+  // EXTRACT REFERENCE
+  // =========================================================
+  extractReference: (payload) => {
+    return payload?.razorpay_order_id || null;
+  },
+
+  refundPayment: async () => {
+    return {
+      ok: false,
+      message: "Razorpay refund not implemented",
+    };
   },
 };

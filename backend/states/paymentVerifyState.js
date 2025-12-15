@@ -4,39 +4,23 @@ import ApiError from "../utils/apiError.js";
 import gatewayFactory from "../factory/gatewayFactory.js";
 import Transaction from "../models/transaction.model.js";
 
-export const paymentVerifyState = async (gatewayName, callbackPayload, config) => {
+export const paymentVerifyState = async (
+  gatewayName,
+  callbackPayload,
+  config
+) => {
   const { ok, adapter } = gatewayFactory(gatewayName);
   if (!ok) throw new ApiError(400, "Unsupported gateway");
 
- 
-  let extractedRef = 
-    callbackPayload?.txnid ||
-    callbackPayload?.ORDERID ||
-    callbackPayload?.orderId ||
-    callbackPayload?.order_id ||
-    callbackPayload?.razorpay_order_id ||  
-    callbackPayload?.transactionId ||
-    callbackPayload?.token ||
-    callbackPayload?.data?.order_id ||
-    callbackPayload?.data?.order?.order_id ||
-    callbackPayload?.gatewayOrderId ||
-    null;
-
-  console.log("=== VERIFY STATE DEBUG ===");
-  console.log("Gateway:", gatewayName);
-  console.log("Extracted TxnId (initial):", extractedRef);
-  console.log("Callback Payload:", JSON.stringify(callbackPayload, null, 2));
-  console.log("==========================");
-
+  const extractedRef = adapter.extractReference(callbackPayload);
   if (!extractedRef) {
-    throw new ApiError(400, "Missing transaction reference");
+    throw new ApiError(400, "Missing gateway reference");
   }
 
-  // Search DB in all possible fields
   const conditions = [
     { gatewayOrderId: extractedRef },
+    { gatewayPaymentId: extractedRef },
     { transactionId: extractedRef },
-    { gatewayPaymentId: extractedRef }
   ];
 
   if (mongoose.Types.ObjectId.isValid(extractedRef)) {
@@ -46,7 +30,6 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
   const transaction = await Transaction.findOne({ $or: conditions });
   if (!transaction) throw new ApiError(404, "Transaction not found");
 
- 
   const result = await adapter.verifyPayment({
     callbackPayload,
     config,
@@ -56,28 +39,18 @@ export const paymentVerifyState = async (gatewayName, callbackPayload, config) =
     throw new ApiError(502, result.message || "Gateway verification failed");
   }
 
-  
   transaction.status = result.data.status;
 
-  if (result.data.gatewayPaymentId)
+  if (result.data.gatewayPaymentId) {
     transaction.gatewayPaymentId = result.data.gatewayPaymentId;
+  }
 
-  if (result.data.amount)
+  if (result.data.amount) {
     transaction.amount = result.data.amount;
-
-  if (result.data.transactionId)
-    transaction.gatewayOrderId = result.data.transactionId;
+  }
 
   transaction.verifiedAt = new Date();
   await transaction.save();
-
-  console.log("Transaction saved:", {
-    id: transaction._id.toString(),
-    status: transaction.status,
-    gatewayOrderId: transaction.gatewayOrderId,
-    gatewayPaymentId: transaction.gatewayPaymentId,
-    amount: transaction.amount,
-  });
 
   return {
     ok: true,

@@ -1,9 +1,8 @@
 import crypto from "crypto";
-import axios from "axios";
 
 const DEFAULT_PAYU_TEST_URL = "https://test.payu.in/_payment";
-export const requiredFields = ["merchantKey", "merchantSalt", "mode"];
 
+export const requiredFields = ["merchantKey", "merchantSalt", "mode"];
 
 const PAYU_ENV = {
   key: process.env.PAYU_MERCHANT_KEY,
@@ -12,6 +11,9 @@ const PAYU_ENV = {
 };
 
 export default {
+  // =========================================================
+  // INITIATE PAYMENT
+  // =========================================================
   initiatePayment: async (input) => {
     try {
       const {
@@ -24,30 +26,38 @@ export default {
         config: configParam,
       } = input;
 
-      const cfg = configParam && Object.keys(configParam).length ? configParam : PAYU_ENV;
+      const cfg =
+        configParam && Object.keys(configParam).length
+          ? configParam
+          : PAYU_ENV;
+
       const { key, salt, baseUrl = DEFAULT_PAYU_TEST_URL } = cfg || {};
 
       if (!key || !salt) {
         return {
           ok: false,
-          message: "Invalid PayU configuration: missing key or salt",
+          message: "Invalid PayU configuration",
         };
       }
 
       if (!amount || !transactionId || !customer?.email) {
-        return { ok: false, message: "Missing required fields for PayU initiate" };
+        return {
+          ok: false,
+          message: "Missing required fields for PayU initiate",
+        };
       }
 
       const formattedAmount = Number(amount).toFixed(2);
-      
-      const surl = redirect.notifyUrl || redirect.successUrl || redirect.success || "";
-      const furl = redirect.notifyUrl || redirect.failureUrl || redirect.failure || "";
+
+      const surl = redirect.notifyUrl || redirect.successUrl || "";
+      const furl = redirect.notifyUrl || redirect.failureUrl || "";
 
       const params = {
         key,
         txnid: transactionId,
         amount: formattedAmount,
-        productinfo: meta?.productInfo || meta?.description || "Product Purchase",
+        productinfo:
+          meta?.productInfo || meta?.description || "Product Purchase",
         firstname: customer?.name || "",
         email: customer?.email || "",
         phone: customer?.phone || "",
@@ -55,13 +65,12 @@ export default {
         furl,
       };
 
-      console.log("PayU initiate params (no hash):", params);
-
-      // PayU hash string: key|txnid|amount|productinfo|firstname|email|||||||||||SALT
+      
       const hashString = `${params.key}|${params.txnid}|${params.amount}|${params.productinfo}|${params.firstname}|${params.email}|||||||||||${salt}`;
-      const hash = crypto.createHash("sha512").update(hashString).digest("hex");
-
-      console.log("PayU hash generated:", hash);
+      const hash = crypto
+        .createHash("sha512")
+        .update(hashString)
+        .digest("hex");
 
       return {
         ok: true,
@@ -69,76 +78,92 @@ export default {
         data: {
           paymentMethod: "redirect_form",
           redirectUrl: baseUrl,
+          gatewayOrderId: transactionId, // IMPORTANT
           formData: {
             ...params,
             hash,
-            notify_url: redirect?.notifyUrl || redirect?.successUrl || "",
           },
         },
       };
     } catch (err) {
-      console.error("PAYU INITIATE ERROR:", err?.response?.data || err?.message || err);
+      console.error("PAYU INITIATE ERROR:", err?.message || err);
       return {
         ok: false,
         message: "PayU initiate error",
-        raw: err?.response?.data || err?.message,
+        raw: err?.message || err,
       };
     }
   },
 
-  verifyPayment: async (input) => {
+  // =========================================================
+  // VERIFY PAYMENT
+  // =========================================================
+  verifyPayment: async ({ callbackPayload }) => {
     try {
-      const { callbackPayload } = input;
-      const txnid =
-        callbackPayload?.txnid ||
-        callbackPayload?.transactionId ||
-        callbackPayload?.order_id;
-
+      const txnid = callbackPayload?.txnid;
       if (!txnid) {
         return { ok: false, message: "Missing txnid in PayU callback" };
       }
 
-      const rawStatus =
-        (callbackPayload?.unmappedstatus || callbackPayload?.status || "")
-          .toString()
-          .toLowerCase();
+      const rawStatus = (
+        callbackPayload?.status ||
+        callbackPayload?.unmappedstatus ||
+        ""
+      )
+        .toString()
+        .toLowerCase();
 
-      const normalized =
-        {
-          captured: "paid",
-          success: "paid",
-          pending: "processing",
-          failure: "failed",
-          failed: "failed",
-          declined: "failed",
-        }[rawStatus] || (rawStatus.includes("success") ? "paid" : "processing");
+      const statusMap = {
+        success: "paid",
+        captured: "paid",
+        failure: "failed",
+        failed: "failed",
+        pending: "processing",
+      };
+
+      const status =
+        statusMap[rawStatus] ||
+        (rawStatus.includes("success") ? "paid" : "processing");
 
       const gatewayPaymentId =
-        callbackPayload?.mihpayid || callbackPayload?.bank_ref_num || null;
+        callbackPayload?.mihpayid ||
+        callbackPayload?.bank_ref_num ||
+        null;
 
       return {
         ok: true,
         message: "PayU verified",
         data: {
-          status: normalized,
+          status,
           gatewayPaymentId,
-          gatewayOrderId: txnid,
-          amount: callbackPayload?.amount,
+          amount: callbackPayload?.amount
+            ? Number(callbackPayload.amount)
+            : null,
         },
+        raw: callbackPayload,
       };
     } catch (err) {
       console.error("PAYU VERIFY ERROR:", err?.message || err);
-      return { ok: false, message: "PayU verify error", raw: err?.message || err };
+      return {
+        ok: false,
+        message: "PayU verify error",
+        raw: err?.message || err,
+      };
     }
   },
 
-  refundPayment: async (input) => {
-    try {
-      return { ok: false, message: "PayU refund not implemented in this stub" };
-    } catch (err) {
-      return { ok: false, message: "PayU refund error", raw: err?.message || err };
-    }
+ 
+  extractReference: (payload) => {
+    return payload?.txnid || null;
   },
 
-  
+  // =========================================================
+  // REFUND (STUB)
+  // =========================================================
+  refundPayment: async () => {
+    return {
+      ok: false,
+      message: "PayU refund not implemented",
+    };
+  },
 };

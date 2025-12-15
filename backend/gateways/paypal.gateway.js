@@ -1,26 +1,24 @@
-// backend/gateways/paypal.gateway.js
 import axios from "axios";
 
-export const requiredFields = ["clientId", "clientSecret", "mode"];
+export const requiredFields = ["clientId", "secret", "baseUrl"];
 
-
-function getPayPalConfig() {
-  const CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
-  const SECRET = process.env.PAYPAL_SECRET;
+function resolvePayPalConfig(config = {}) {
+  const CLIENT_ID = config.clientId || process.env.PAYPAL_CLIENT_ID;
+  const SECRET = config.secret || process.env.PAYPAL_SECRET;
   const BASE_URL =
-    process.env.PAYPAL_BASE_URL || "https://api-m.sandbox.paypal.com";
+    config.baseUrl ||
+    process.env.PAYPAL_BASE_URL ||
+    "https://api-m.sandbox.paypal.com";
 
   if (!CLIENT_ID || !SECRET) {
-    throw new Error(
-      `PayPal credentials missing. CLIENT_ID: ${CLIENT_ID ? "OK" : "MISSING"}, SECRET: ${SECRET ? "OK" : "MISSING"}`
-    );
+    throw new Error("PayPal credentials missing");
   }
 
   return { CLIENT_ID, SECRET, BASE_URL };
 }
 
-async function getPayPalAccessToken() {
-  const { CLIENT_ID, SECRET, BASE_URL } = getPayPalConfig();
+async function getPayPalAccessToken(cfg) {
+  const { CLIENT_ID, SECRET, BASE_URL } = cfg;
 
   const auth = Buffer.from(`${CLIENT_ID}:${SECRET}`).toString("base64");
 
@@ -43,45 +41,33 @@ async function getPayPalAccessToken() {
 }
 
 export default {
-  // =========================================================
-  // INITIATE PAYMENT (PayPal Checkout v2)
-  // =========================================================
+ 
   initiatePayment: async (input) => {
     try {
-      const { BASE_URL } = getPayPalConfig();
-      const accessToken = await getPayPalAccessToken();
-
       const {
-      amount,
-      transactionId,
-      customer = {},
-      redirect = {},
-      meta = {},
-    } = input;
-
-// Force currency to USD because PayPal does not support INR
-const currency = "USD";
+        amount,
+        transactionId,
+        customer = {},
+        redirect = {},
+        meta = {},
+        config = {},
+      } = input;
 
       if (!amount || !transactionId) {
-        throw new Error("Missing amount or transactionId for PayPal initiate");
+        throw new Error("Missing amount or transactionId");
       }
 
-      const returnUrl =
-        redirect.notifyUrl ||
-        `${process.env.BACKEND_URL}/api/payments/callback/paypal`;
-      const cancelUrl =
-        redirect.failureUrl ||
-        `${process.env.FRONTEND_URL || "http://localhost:5173"}/payments/failure`;
+      const cfg = resolvePayPalConfig(config);
+      const accessToken = await getPayPalAccessToken(cfg);
 
       const body = {
         intent: "CAPTURE",
         purchase_units: [
           {
-            reference_id: String(transactionId),
-            description:
-              meta.description || meta.linkTitle || "Order payment",
+            reference_id: transactionId, 
+            description: meta.description || "Order payment",
             amount: {
-              currency_code: currency,
+              currency_code: "USD",
               value: Number(amount).toFixed(2),
             },
           },
@@ -89,13 +75,13 @@ const currency = "USD";
         application_context: {
           brand_name: "UnifiedPay",
           user_action: "PAY_NOW",
-          return_url: returnUrl, 
-          cancel_url: cancelUrl,
+          return_url: redirect.notifyUrl,   
+          cancel_url: redirect.failureUrl,
         },
       };
 
       const orderRes = await axios.post(
-        `${BASE_URL}/v2/checkout/orders`,
+        `${cfg.BASE_URL}/v2/checkout/orders`,
         body,
         {
           headers: {
@@ -106,32 +92,28 @@ const currency = "USD";
       );
 
       const order = orderRes.data;
-
-      if (!order?.id) {
-        throw new Error("Invalid PayPal order response (missing id)");
-      }
-
       const approvalLink =
         order.links?.find((l) => l.rel === "approve")?.href || null;
 
-      if (!approvalLink) {
-        throw new Error("Missing approval URL in PayPal response");
+      if (!order?.id || !approvalLink) {
+        throw new Error("Invalid PayPal order response");
       }
 
-      // This is what paymentInitiateState expects (result.data.*)
-      // and what Payments.jsx redirects on.
       return {
         ok: true,
         message: "PayPal order created",
         data: {
-          paymentMethod: "redirect_url",      // frontend checks this
-          redirectUrl: approvalLink,          // frontend redirects here
-          gatewayOrderId: order.id,           // stored by paymentInitiateState
-          providerRaw: order,
+          paymentMethod: "redirect_url",
+          redirectUrl: approvalLink,
+          gatewayOrderId: order.id, 
+          raw: order,
         },
       };
     } catch (err) {
-      console.error("PAYPAL INITIATE ERROR:", err.response?.data || err.message || err);
+      console.error(
+        "PAYPAL INIT ERROR:",
+        err.response?.data || err.message
+      );
       return {
         ok: false,
         message: "PayPal initiate error",
@@ -141,26 +123,23 @@ const currency = "USD";
   },
 
   // =========================================================
-  // VERIFY PAYMENT 
+  // VERIFY PAYMENT (CAPTURE ORDER)
   // =========================================================
-  verifyPayment: async ({ callbackPayload }) => {
+  verifyPayment: async ({ callbackPayload, config }) => {
     try {
-      const { BASE_URL } = getPayPalConfig();
-      const accessToken = await getPayPalAccessToken();
-
-    
-      const orderId =
-        callbackPayload?.orderId ||
-        callbackPayload?.order_id ||
-        null;
-
+      const orderId = callbackPayload?.token || null;
       if (!orderId) {
-        throw new Error("Missing PayPal order id (token) in callback");
+        return {
+          ok: false,
+          message: "Missing PayPal order id (token)",
+        };
       }
 
-      
+      const cfg = resolvePayPalConfig(config);
+      const accessToken = await getPayPalAccessToken(cfg);
+
       const captureRes = await axios.post(
-        `${BASE_URL}/v2/checkout/orders/${orderId}/capture`,
+        `${cfg.BASE_URL}/v2/checkout/orders/${orderId}/capture`,
         {},
         {
           headers: {
@@ -171,37 +150,28 @@ const currency = "USD";
       );
 
       const capture = captureRes.data;
+      const completed = capture.status === "COMPLETED";
 
-      const status = capture.status === "COMPLETED" ? "paid" : "failed";
-
-      
-      let gatewayPaymentId = null;
-      let amount = null;
-
-      try {
-        const unit = capture.purchase_units?.[0];
-        const payment = unit?.payments?.captures?.[0];
-        gatewayPaymentId = payment?.id || null;
-        if (payment?.amount?.value) {
-          amount = parseFloat(payment.amount.value);
-        }
-      } catch (e) {
-        console.log(e)
-      }
+      const payment =
+        capture.purchase_units?.[0]?.payments?.captures?.[0] || null;
 
       return {
         ok: true,
         message: "PayPal verify success",
         data: {
-          status,
-          gatewayOrderId: orderId,
-          gatewayPaymentId,
-          amount,
+          status: completed ? "paid" : "failed",
+          gatewayPaymentId: payment?.id || null,
+          amount: payment?.amount?.value
+            ? Number(payment.amount.value)
+            : null,
         },
         raw: capture,
       };
     } catch (err) {
-      console.error("PAYPAL VERIFY ERROR:", err.response?.data || err.message || err);
+      console.error(
+        "PAYPAL VERIFY ERROR:",
+        err.response?.data || err.message
+      );
       return {
         ok: false,
         message: "PayPal verify error",
@@ -210,14 +180,17 @@ const currency = "USD";
     }
   },
 
-  // =========================================================
-  // REFUND (stub for now)
-  // =========================================================
+ 
+  extractReference: (payload) => {
+    // PayPal redirect: ?token=ORDER_ID&PayerID=...
+    return payload?.token || null;
+  },
+
+  
   refundPayment: async () => {
-   
     return {
       ok: false,
-      message: "PayPal refund not implemented yet",
+      message: "PayPal refund not implemented",
     };
   },
 };
