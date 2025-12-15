@@ -13,6 +13,7 @@ export default function Navbar() {
     { name: "Payments", path: "/payments" },
     { name: "Dashboard", path: "/dashboard" },
     { name: "Projects", path: "/projects" },
+    {name : "SDK", path : "/sdk"}
   ];
 
   const handleProtected = (path) => {

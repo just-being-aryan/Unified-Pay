@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
-
+import UserSDK from "@/pages/UserSDK"
 import Home from "@/pages/Home";
 import Payments from "@/pages/Payments";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -27,6 +27,7 @@ function App() {
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/login" element={<Navigate to="/auth" replace />} />
           <Route path="/register" element={<Navigate to="/auth" replace />} />
+          <Route path = "/sdk" element = {<UserSDK/>}/>
 
           {/* OAuth */}
           <Route path="/oauth" element={<OauthHandler />} />
