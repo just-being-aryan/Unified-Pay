@@ -7,7 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFailure from "@/pages/PaymentFailure";
 import Dashboard from "@/pages/Dashboard";
-import OauthHandler from "@/pages/OauthHandler";
+import OAuthHandler from "@/pages/OauthHandler";
 import ProjectsLayout from "@/pages/projects/ProjectsLayout";
 import AuthPage from "@/pages/AuthPage";
 import CreateProjectWizard from "@/pages/projects/CreateProjectWizard";
@@ -30,7 +30,7 @@ function App() {
           <Route path = "/sdk" element = {<UserSDK/>}/>
 
           {/* OAuth */}
-          <Route path="/oauth" element={<OauthHandler />} />
+          <Route path="/oauth" element={<OAuthHandler />} />
 
           {/* Payment Redirect Pages */}
           <Route path="/payments/success" element={<PaymentSuccess />} />
