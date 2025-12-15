@@ -7,7 +7,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFailure from "@/pages/PaymentFailure";
 import Dashboard from "@/pages/Dashboard";
-import OAuthHandler from "@/pages/OauthHandler";
+import OAuthHandler from "@/pages/OAuthHandler";
 import ProjectsLayout from "@/pages/projects/ProjectsLayout";
 import AuthPage from "@/pages/AuthPage";
 import CreateProjectWizard from "@/pages/projects/CreateProjectWizard";

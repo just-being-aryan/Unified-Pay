@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import api from "@/api/axios";
 
-export default function OauthHandler() {
+export default function OAuthHandler() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
