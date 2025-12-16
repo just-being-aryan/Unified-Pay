@@ -18,7 +18,7 @@ export default function OAuthHandler() {
     api.get("/api/users/profile")
       .then((res) => {
         login(token, res.data.user);
-        navigate("/payments", { replace: true });
+        navigate("/projects", { replace: true });
       })
       .catch(() => navigate("/login"));
   }, []);
