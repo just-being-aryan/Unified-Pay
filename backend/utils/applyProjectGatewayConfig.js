@@ -59,11 +59,30 @@ export async function applyProjectGatewayConfig(input) {
 
     case "paytm":
       normalized = {
-        mid: raw.mid || null,
-        merchantKey: raw.merchantKey || null,
-        website: raw.website || null,
-        industry: raw.industry || null,
-        channelId: raw.channelId || null,
+        mid:
+          raw.PAYTM_MID ||
+          raw.mid ||
+          null,
+
+        merchantKey:
+          raw.PAYTM_MERCHANT_KEY ||
+          raw.merchantKey ||
+          null,
+
+        website:
+          raw.PAYTM_MERCHANT_WEBSITE ||
+          raw.website ||
+          "WEBSTAGING",
+
+        industry:
+          raw.PAYTM_MERCHANT_INDUSTRY ||
+          raw.industry ||
+          "Retail",
+
+        channelId:
+          raw.PAYTM_CHANNEL_ID ||
+          raw.channelId ||
+          "WEB",
       };
       break;
 

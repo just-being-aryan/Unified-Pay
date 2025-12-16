@@ -10,6 +10,7 @@ import { registerUser,
     toggleUserStatus,
     adminRegenerateApiKey
 } from "../controllers/user.controller.js";
+import { authLimiter } from "../middleware/rateLimiters.js";
 
 import { protect,isAdmin } from "../middleware/authMiddleware.js";
 import { generateUserApiKey } from "../controllers/user.controller.js";
@@ -17,8 +18,8 @@ import { generateUserApiKey } from "../controllers/user.controller.js";
 const router = express.Router();
 
 // public
-router.post("/register", registerUser);
-router.post("/login", loginUser);
+router.post("/register",authLimiter, registerUser);
+router.post("/login",authLimiter, loginUser);
 
 // protected
 router.get("/profile", protect, getUserProfile);

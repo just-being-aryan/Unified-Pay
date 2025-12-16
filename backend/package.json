@@ -23,12 +23,15 @@
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^8.2.1",
+    "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
     "morgan": "^1.10.1",
     "node-cron": "^4.2.1",
     "paytmchecksum": "^1.5.1",
     "pdfkit": "^0.17.2",
+    "rate-limit-redis": "^4.3.1",
     "razorpay": "^2.9.6"
   },
   "devDependencies": {

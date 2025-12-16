@@ -1,3 +1,4 @@
+// backend/gateways/paytm.gateway.js
 import axios from "axios";
 import PaytmChecksum from "paytmchecksum";
 
@@ -7,24 +8,25 @@ export const requiredFields = [
   "PAYTM_MERCHANT_WEBSITE",
 ];
 
-// ---------------------------------------------------------
-// CONFIG RESOLVER
-// ---------------------------------------------------------
 function resolvePaytmConfig(config = {}) {
   const MID =
-    config.PAYTM_MID || process.env.PAYTM_MID;
+    config.PAYTM_MID ||
+    config.mid ||
+    process.env.PAYTM_MID;
 
   const MERCHANT_KEY =
-    config.PAYTM_MERCHANT_KEY || process.env.PAYTM_MERCHANT_KEY;
+    config.PAYTM_MERCHANT_KEY ||
+    config.merchantKey ||
+    process.env.PAYTM_MERCHANT_KEY;
 
   const WEBSITE =
     config.PAYTM_MERCHANT_WEBSITE ||
+    config.website ||
     process.env.PAYTM_MERCHANT_WEBSITE ||
     "WEBSTAGING";
 
   const BASE_URL =
-    process.env.PAYTM_BASE_URL ||
-    "https://securegw-stage.paytm.in";
+    process.env.PAYTM_BASE_URL || "https://securegw-stage.paytm.in";
 
   if (!MID || !MERCHANT_KEY) {
     throw new Error("Paytm credentials missing");
@@ -41,36 +43,39 @@ export default {
     try {
       const {
         amount,
-        transactionId,
         customer = {},
         redirect = {},
         currency = "INR",
         config = {},
       } = input;
 
-      if (!amount || !transactionId) {
-        return { ok: false, message: "Missing amount or transactionId" };
-      }
-
       const cfg = resolvePaytmConfig(config);
 
-      const ORDERID = `ORD_${transactionId}`;
+     
+      const ORDERID = `ORD${Date.now()}`;
 
       const paytmBody = {
         requestType: "Payment",
         mid: cfg.MID,
         websiteName: cfg.WEBSITE,
         orderId: ORDERID,
-        callbackUrl: redirect.notifyUrl,
+
+        
+        channelId: "WEB",
+        industryTypeId: "Retail",
+
+        callbackUrl: redirect.successUrl,
+
         txnAmount: {
           value: Number(amount).toFixed(2),
           currency,
         },
         userInfo: {
-          custId: customer?.email || transactionId,
+          custId: customer.email || ORDERID,
         },
       };
 
+      
       const signature = await PaytmChecksum.generateSignature(
         JSON.stringify(paytmBody),
         cfg.MERCHANT_KEY
@@ -87,8 +92,13 @@ export default {
         headers: { "Content-Type": "application/json" },
       });
 
-      const txnToken = data?.body?.txnToken;
-      if (!txnToken) {
+      // ✅ LOG RAW PAYTM RESPONSE IF FAILURE
+      if (!data?.body?.txnToken) {
+        console.error(
+          "PAYTM INITIATE RESPONSE:",
+          JSON.stringify(data, null, 2)
+        );
+
         return {
           ok: false,
           message: "Paytm did not return txnToken",
@@ -103,11 +113,10 @@ export default {
           paymentMethod: "paytm_js",
           mid: cfg.MID,
           orderId: ORDERID,
-          txnToken,
-          amount,
+          txnToken: data.body.txnToken,
+          amount: Number(amount).toFixed(2),
           currency,
           gatewayOrderId: ORDERID,
-          raw: data,
         },
       };
     } catch (err) {
@@ -120,19 +129,14 @@ export default {
   },
 
   // =========================================================
-  // VERIFY PAYMENT (ORDER STATUS API)
+  // VERIFY PAYMENT
   // =========================================================
   verifyPayment: async ({ callbackPayload, config }) => {
     try {
       const ORDERID =
         callbackPayload?.ORDERID ||
         callbackPayload?.orderId ||
-        callbackPayload?.order_id ||
-        null;
-
-      if (!ORDERID) {
-        return { ok: false, message: "Missing ORDERID in Paytm callback" };
-      }
+        callbackPayload?.order_id;
 
       const cfg = resolvePaytmConfig(config);
 
@@ -158,11 +162,11 @@ export default {
       });
 
       const result = data?.body;
-      const statusRaw = result?.resultInfo?.resultStatus;
+      const rawStatus = result?.resultInfo?.resultStatus;
 
       let status = "processing";
-      if (statusRaw === "TXN_SUCCESS") status = "paid";
-      if (statusRaw === "TXN_FAILURE") status = "failed";
+      if (rawStatus === "TXN_SUCCESS") status = "paid";
+      if (rawStatus === "TXN_FAILURE") status = "failed";
 
       return {
         ok: true,
@@ -185,25 +189,14 @@ export default {
     }
   },
 
-  // =========================================================
-  // EXTRACT REFERENCE
-  // =========================================================
-  extractReference: (payload) => {
-    return (
-      payload?.ORDERID ||
-      payload?.orderId ||
-      payload?.order_id ||
-      null
-    );
-  },
+  extractReference: (payload) =>
+    payload?.ORDERID ||
+    payload?.orderId ||
+    payload?.order_id ||
+    null,
 
-  // =========================================================
-  // REFUND (NOT IMPLEMENTED)
-  // =========================================================
-  refundPayment: async () => {
-    return {
-      ok: false,
-      message: "Paytm refund not implemented",
-    };
-  },
+  refundPayment: async () => ({
+    ok: false,
+    message: "Paytm refund not implemented",
+  }),
 };

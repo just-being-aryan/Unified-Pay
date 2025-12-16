@@ -7,7 +7,7 @@ import {
   notFound,
   errorHandler
 } from "./middleware/errorMiddleware.js";
-
+import { globalLimiter } from "./middleware/rateLimiters.js";
 import reportRoutes from "./routes/report.route.js";
 import userRoutes from "./routes/user.routes.js";
 import paymentRoutes from "./routes/payment.route.js";
@@ -49,6 +49,10 @@ app.use(morgan("dev"));
 ------------------------- */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+//rate limiter redis
+
+app.use(globalLimiter)
 
 /* ------------------------
    ROUTES

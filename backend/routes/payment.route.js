@@ -7,13 +7,17 @@ import {
   getAllPayments,
   deleteTransaction
 } from '../controllers/payment.controller.js';
+import {
+  paymentInitLimiter,
+  dashboardLimiter,
+} from "../middleware/rateLimiters.js";
 
 import { protect, isAdmin } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 //payment initiate
-router.post('/initiate', protect, initiatePayment);
+router.post('/initiate', protect, paymentInitLimiter,initiatePayment);
 
 // UNIVERSAL CALLBACK (PayU, Razorpay, Cashfree, etc.)
 router.post('/callback/:gateway', verifyPayment);
@@ -24,7 +28,7 @@ router.options('/callback/:gateway', (req, res) => res.sendStatus(200));
 router.post('/refund', protect, isAdmin, refundPayment);
 
 //get transaction info for dashboard
-router.get("/", protect, getAllPayments);
+router.get("/", protect,dashboardLimiter,getAllPayments);
 
 //get single transaction
 router.get('/transaction/:id', getTransaction);

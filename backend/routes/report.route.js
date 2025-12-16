@@ -1,5 +1,6 @@
 import express from "express";
 import { protect ,isAdmin} from "../middleware/authMiddleware.js";
+import { dashboardLimiter } from "../middleware/rateLimiters.js";
 import {
   getOverallStats,
   getGatewaySummary,
@@ -12,10 +13,9 @@ router.use(protect);
 
 
 
-router.get("/overall", protect, getOverallStats);             
+router.get("/overall", dashboardLimiter, getOverallStats);
+router.get("/gateway-summary", dashboardLimiter, getGatewaySummary);
+router.get("/revenue-trend", dashboardLimiter, isAdmin, getRevenueTrend);
 
-router.get("/gateway-summary", protect, getGatewaySummary);  
-
-router.get("/revenue-trend", protect, isAdmin, getRevenueTrend);
 
 export default router;
