@@ -25,10 +25,11 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://unified-pay-ten.vercel.app/", 
+      "https://unified-pay-ten.vercel.app"
     ],
     credentials: true,
-    methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
