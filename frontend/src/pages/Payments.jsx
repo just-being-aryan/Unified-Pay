@@ -9,7 +9,7 @@ export default function Payments({
 }) {
   const { user } = useAuth();
 
-  const [gateway, setGateway] = useState("payu");
+  const [gateway, setGateway] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,6 +22,7 @@ export default function Payments({
   const projectId = injectedProjectId || urlProjectId;
 
   // Load Razorpay SDK
+  
   useEffect(() => {
     if (window.Razorpay) return;
     const script = document.createElement("script");
@@ -30,9 +31,16 @@ export default function Payments({
     document.body.appendChild(script);
   }, []);
 
+  
+
   const handlePayment = async (e) => {
     e.preventDefault();
     if (!amount) return alert("Enter amount");
+    if (!gateway) {
+        alert("Please select a payment gateway");
+        setLoading(false);
+        return;
+      }
 
     try {
       setLoading(true);
