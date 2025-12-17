@@ -1,4 +1,3 @@
-// src/pages/projects/ProjectsLayout.jsx
 import { useState, useEffect } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import api from "@/api/axios";
@@ -12,7 +11,6 @@ export default function ProjectsLayout({ children }) {
   const [projects, setProjects] = useState([]);
 
   const isCreatePage = location.pathname === "/projects/create";
-  if (isCreatePage) return null; // standalone
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -26,10 +24,19 @@ export default function ProjectsLayout({ children }) {
     fetchProjects();
   }, []);
 
+  useEffect(() => {
+    if (!id || projects.length === 0) return;
+
+    const exists = projects.some((p) => p._id === id);
+    if (!exists) {
+      navigate(`/projects/${id}`, { replace: true });
+    }
+  }, [id, projects, navigate]);
+
+  if (isCreatePage) return null;
+
   return (
     <div className="flex h-[calc(100vh-120px)] bg-gray-50 -mt-14 overflow-hidden">
-
-      {/* SIDEBAR (scrolls independently) */}
       <div className="w-64 bg-white border-r shadow-sm p-6 flex flex-col overflow-y-auto">
         <h2 className="text-xl font-bold mb-6">Projects</h2>
 
@@ -57,16 +64,14 @@ export default function ProjectsLayout({ children }) {
         </button>
       </div>
 
-      {/* MAIN PANEL (scrolls independently) */}
       <div className="flex-1 overflow-y-auto p-10">
         {children
           ? children
           : id
-          ? <ProjectDashboard />
+          ? <ProjectDashboard key={id} />
           : <div className="text-gray-600 text-lg">Select a project.</div>
         }
       </div>
-
     </div>
   );
 }

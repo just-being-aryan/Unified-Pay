@@ -22,7 +22,6 @@ export default function Payments({
   const projectId = injectedProjectId || urlProjectId;
 
   // Load Razorpay SDK
-  
   useEffect(() => {
     if (window.Razorpay) return;
     const script = document.createElement("script");
@@ -31,16 +30,14 @@ export default function Payments({
     document.body.appendChild(script);
   }, []);
 
-  
-
   const handlePayment = async (e) => {
     e.preventDefault();
     if (!amount) return alert("Enter amount");
     if (!gateway) {
-        alert("Please select a payment gateway");
-        setLoading(false);
-        return;
-      }
+      alert("Please select a payment gateway");
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -86,13 +83,10 @@ export default function Payments({
       const res = await api.post("/api/payments/initiate", payload);
       const response = res.data?.data || res.data;
 
-      
       if (response.paymentMethod === "paytm_js") {
-        // ... unchanged Paytm block ...
         return;
       }
 
-      
       if (response.paymentMethod === "razorpay_js") {
         if (!window.Razorpay) {
           alert("Razorpay SDK not loaded");
@@ -111,27 +105,19 @@ export default function Payments({
           currency: response.currency,
           name: "UnifiedPay",
           order_id: response.orderId,
-
-          
           callback_url: response.callbackUrl,
           redirect: true,
-
           prefill: {
             name: sanitizedCustomer.name,
             email: sanitizedCustomer.email,
             contact,
           },
-
           theme: { color: "#3399cc" },
         };
 
-        console.log("=== RAZORPAY OPTIONS ===", options);
-
         const rz = new window.Razorpay(options);
 
-        
-        rz.on("payment.failed", async (fail) => {
-          console.error("Payment failed:", fail);
+        rz.on("payment.failed", async () => {
           window.location.href = `/payments/failure?txnid=${response.transactionId}&status=failed`;
         });
 
@@ -140,7 +126,6 @@ export default function Payments({
         return;
       }
 
-     
       if (
         response.paymentMethod === "redirect_form" &&
         response.redirectUrl &&
@@ -163,7 +148,6 @@ export default function Payments({
         return;
       }
 
-      
       if (response.paymentMethod === "redirect_url") {
         window.location.href = response.redirectUrl;
         return;
@@ -213,6 +197,11 @@ export default function Payments({
               onChange={(e) => setGateway(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg"
             >
+              {/* ✅ REQUIRED FIX */}
+              <option value="" disabled>
+                Select a gateway
+              </option>
+
               {(allowedGateways ||
                 ["payu", "paytm", "paypal", "cashfree", "razorpay"]
               ).map((g) => (
