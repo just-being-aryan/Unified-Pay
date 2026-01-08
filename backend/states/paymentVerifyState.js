@@ -52,6 +52,17 @@ export const paymentVerifyState = async (
   transaction.verifiedAt = new Date();
   await transaction.save();
 
+  if (transaction.projectId) {
+    const Project = await import("../models/project.model.js").then(m => m.default);
+    const project = await Project.findById(transaction.projectId);
+
+    if (project?.gstConfig?.enabled) {
+      const { createGSTInvoice, generateSandboxIRN } = await import("../services/gstInvoice.service.js");
+      await createGSTInvoice(transaction, project);
+      await generateSandboxIRN(transaction);
+    }
+  }
+
   return {
     ok: true,
     message: "Transaction verified",

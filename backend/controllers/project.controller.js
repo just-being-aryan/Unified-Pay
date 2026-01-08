@@ -91,9 +91,29 @@ export const createProject = asyncHandler(async (req, res) => {
     owner: req.user._id,
     callbacks: callbacks || {},
     apiKeys: [
-      { keyId: pair.keyId, secret: pair.secret, label: "default" },
+      {
+        keyId: pair.keyId,
+        secret: pair.secret,
+        label: "default",
+      },
     ],
     gatewayConfigs: new Map(Object.entries(normalizedGateways)),
+    gstConfig: {
+      enabled: !!req.body.gstInfo?.enabled,
+      sellerGSTIN: req.body.gstInfo?.gstNumber || "",
+      billingAddress: req.body.gstInfo?.address || "",
+      placeOfSupply: [
+        req.body.gstInfo?.state,
+        req.body.gstInfo?.city,
+        req.body.gstInfo?.pincode,
+      ]
+        .filter(Boolean)
+        .join(", "),
+      invoice: {
+        prefix: "UP",
+        lastNumber: 0,
+      },
+    },
   });
 
   return res.status(201).json({

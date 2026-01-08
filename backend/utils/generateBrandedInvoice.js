@@ -1,136 +1,135 @@
 import PDFDocument from "pdfkit";
+import QRCode from "qrcode";
 
-export const generateBrandedInvoice = (transaction) => {
-  const doc = new PDFDocument({ margin: 50 });
+export const generateBrandedInvoice = async (transaction) => {
+  const doc = new PDFDocument({ margin: 50, size: "A4" });
 
- 
-  doc
-    .fontSize(26)
-    .fillColor("#3F00FF")
-    .text("UniPay");
+  const LEFT = 50;
+  const RIGHT = 300;
+  let y = 50;
 
-  doc.moveDown(1.5);
+  const row = (label, value) => {
+    doc.fontSize(12).fillColor("#333").text(label, LEFT, y);
+    doc.text(value, RIGHT, y, { width: 240, lineBreak: false });
+    y += 18;
+  };
 
-  
-  doc
-    .fontSize(20)
-    .fillColor("#000")
-    .text("Payment Invoice");
+  doc.fontSize(26).fillColor("#3F00FF").text("UniPay", LEFT, y);
+  y += 34;
 
-  doc.moveDown(1);
+  doc.fontSize(20).fillColor("#000").text("Payment Invoice", LEFT, y);
+  y += 28;
 
   const createdAt = new Date(transaction.createdAt).toLocaleString();
   const verifiedAt = transaction.verifiedAt
     ? new Date(transaction.verifiedAt).toLocaleString()
     : "-";
 
- 
-  doc
-    .fontSize(12)
-    .fillColor("#555")
-    .text(`Invoice No: ${transaction.transactionId}`)
-    .text(`Date Issued: ${createdAt}`)
-    .text(`Status: ${transaction.status}`);
+  doc.fontSize(11).fillColor("#555").text(
+    `Invoice No: ${
+      transaction.gst?.enabled
+        ? transaction.gst.invoiceNumber
+        : transaction.transactionId
+    }`,
+    LEFT,
+    y
+  );
+  y += 14;
+  doc.text(`Date Issued: ${createdAt}`, LEFT, y);
+  y += 14;
+  doc.text(`Status: ${transaction.status}`, LEFT, y);
+  y += 22;
 
-  doc.moveDown(2);
+  doc.fontSize(14).fillColor("#000").text("Billed To", LEFT, y);
+  y += 18;
 
-  
-   const customerName = transaction.customer?.name || "N/A";
-   const customerEmail = transaction.customer?.email || "N/A";
-   const customerPhone = transaction.customer?.phone || "N/A";
+  row("Name", transaction.customer?.name || "N/A");
+  row("Email", transaction.customer?.email || "N/A");
+  row("Phone", transaction.customer?.phone || "N/A");
 
-  doc
-    .fontSize(14)
-    .fillColor("#000")
-    .text("Billed To", { underline: true });
+  y += 14;
+  doc.fontSize(14).fillColor("#000").text("Payment Summary", LEFT, y);
+  y += 18;
 
-  doc.moveDown(0.7);
+  row("Description", `Payment via ${transaction.gateway}`);
+  row("Amount", `INR ${transaction.amount}`);
 
-  doc
-    .fontSize(12)
-    .fillColor("#333")
-    .text(`Name: ${customerName}`)
-    .text(`Email: ${customerEmail}`)
-    .text(`Phone: ${customerPhone}`);
+  y += 14;
+  doc.fontSize(14).fillColor("#000").text("Transaction Details", LEFT, y);
+  y += 18;
 
-  doc.moveDown(2);
+  row("Gateway", transaction.gateway);
+  row("Gateway Payment ID", transaction.gatewayPaymentId || "N/A");
+  row("Internal Txn ID", transaction.transactionId);
+  row("Verified At", verifiedAt);
 
+  if (transaction.gst?.enabled) {
+    y += 14;
+    doc.fontSize(14).fillColor("#000").text("GST Summary", LEFT, y);
+    y += 18;
 
-  doc
-    .fontSize(14)
-    .fillColor("#000")
-    .text("Payment Summary", { underline: true });
+    row("Taxable Value", `INR ${transaction.gst.taxes.taxableValue}`);
+    row("CGST", `INR ${transaction.gst.taxes.cgst}`);
+    row("SGST", `INR ${transaction.gst.taxes.sgst}`);
+    row("Total Tax", `INR ${transaction.gst.taxes.totalTax}`);
+    row("Grand Total", `INR ${transaction.gst.taxes.grandTotal}`);
 
-  doc.moveDown(0.8);
+    y += 14;
+    doc.fontSize(14).fillColor("#000").text("IRN Details", LEFT, y);
+    y += 18;
 
-  
-  const boxX = 50;
-  const boxY = doc.y;
-  const boxWidth = 500;
-  const rowHeight = 30;
+    doc.fontSize(12).fillColor("#333").text("IRN", LEFT, y);
+    y += 16;
 
+    doc
+      .fontSize(11)
+      .fillColor("#333")
+      .text(transaction.gst.irn.number, LEFT, y, {
+        width: doc.page.width - 100,
+        lineBreak: false,
+      });
 
-  doc
-    .rect(boxX, boxY, boxWidth, rowHeight)
-    .fill("#f5f5f5")
-    .stroke();
+    y += 20;
 
- 
-  doc
-    .fillColor("#000")
-    .fontSize(12)
-    .text("Description", boxX + 10, boxY + 10)
-    .text("Amount", boxX + boxWidth - 60, boxY + 10);
-
-  
-  doc.y = boxY + rowHeight + 10;
-
-
-  doc
-    .fontSize(12)
-    .fillColor("#333")
-    .text(`Payment via ${transaction.gateway}`, boxX + 10, doc.y)
-    .text(`₹${transaction.amount}`, boxX + boxWidth - 60, doc.y);
-
-  doc.moveDown(3);
+    row("ACK No", transaction.gst.irn.ackNo);
+    row(
+      "ACK Date",
+      new Date(transaction.gst.irn.ackDate).toLocaleString()
+    );
 
 
-  doc
-    .fontSize(14)
-    .fillColor("#000")
-    .text("Transaction Details", { underline: true });
 
-  doc.moveDown(0.8);
+  }
 
-  
-  const startX = 50;
+  if (transaction.gst?.irn?.qrCode) {
+    const qr = await QRCode.toBuffer(transaction.gst.irn.qrCode, {
+      width: 120,
+      margin: 0,
+    });
 
-  doc
-    .fontSize(12)
-    .fillColor("#333")
-    .text(`Gateway: ${transaction.gateway}`, startX)
-    .text(
-      `Gateway Payment ID: ${transaction.gatewayPaymentId || "N/A"}`,
-      startX
-    )
-    .text(`Internal Txn ID: ${transaction.transactionId}`, startX)
-    .text(`Verified At: ${verifiedAt}`, startX);
-
-  doc.moveDown(3);
-
- 
-  doc
-    .fontSize(11)
-    .fillColor("#777")
-    .text("This is a system-generated invoice.", { align: "center" })
-    .moveDown(0.5);
+    doc.image(qr, doc.page.width - 170, 50, { width: 120 });
+  }
 
   doc
-    .fontSize(12)
-    .fillColor("#3F00FF")
-    .text("Powered by UniPay", { align: "center" });
+  .fontSize(10)
+  .fillColor("#777")
+  .text(
+    "This is a system-generated invoice.",
+    LEFT,
+    doc.page.height - 90,
+    { align: "center" }
+  );
+
+doc
+  .fontSize(12)
+  .fillColor("#3F00FF")
+  .text(
+    "Powered by UniPay",
+    LEFT,
+    doc.page.height - 70,
+    { align: "center" }
+  );
 
   doc.end();
   return doc;
 };
-

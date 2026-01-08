@@ -59,6 +59,17 @@ const projectSchema = new mongoose.Schema(
       type: [apiKeySchema],
       default: [],
     },
+    
+    gstConfig: {
+      enabled: { type: Boolean, default: false },
+      sellerGSTIN: { type: String, default: "" },
+      billingAddress: { type: String, default: "" },
+      placeOfSupply: { type: String, default: "" },
+      invoice: {
+        prefix: { type: String, default: "UP" },
+        lastNumber: { type: Number, default: 0 }
+      }
+    },
 
   
     gatewayConfigs: {
@@ -82,6 +93,7 @@ projectSchema.statics.generateKeyPair = function () {
   const secret = "sk_" + crypto.randomBytes(24).toString("hex");
   return { keyId, secret };
 };
+
 
 const Project = mongoose.model("Project", projectSchema);
 export default Project;

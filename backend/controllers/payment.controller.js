@@ -194,7 +194,7 @@ export const getTransaction = asyncHandler(async (req, res) => {
   if (req.query.format === "pdf") {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename=invoice-${transaction.transactionId}.pdf`);
-    const pdf = generateBrandedInvoice(transaction);
+    const pdf = await generateBrandedInvoice(transaction);
     return pdf.pipe(res);
   }
 

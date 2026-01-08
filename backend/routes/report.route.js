@@ -18,13 +18,13 @@ router.use(protect);
 router.get(
   "/overall",
   dashboardLimiter,
-  cache(() => "reports:overall"),
+  cache((req) => `reports:overall:user:${req.user._id}`),
   getOverallStats
 );
 router.get(
   "/gateway-summary",
   dashboardLimiter,
-  cache(() => "reports:gateway-summary"),
+  cache((req) => `reports:gateway-summary:user:${req.user._id}`),
   getGatewaySummary
 );
 router.get("/revenue-trend", dashboardLimiter, isAdmin, getRevenueTrend);

@@ -54,6 +54,33 @@ const transactionSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    gst: {
+      enabled: { type: Boolean, default: false },
+      invoiceNumber: { type: String, default: "" },
+
+      taxes: {
+        taxableValue: { type: Number, default: 0 },
+        cgst: { type: Number, default: 0 },
+        sgst: { type: Number, default: 0 },
+        igst: { type: Number, default: 0 },
+        totalTax: { type: Number, default: 0 },
+        grandTotal: { type: Number, default: 0 }
+      },
+
+      irn: {
+        number: { type: String, default: "" },
+        ackNo: { type: String, default: "" },
+        ackDate: { type: Date },
+        qrCode: { type: String, default: "" },
+        status: {
+          type: String,
+          enum: ["NOT_SUBMITTED", "GENERATED", "FAILED"],
+          default: "NOT_SUBMITTED"
+        },
+        rawResponse: { type: Object, default: {} }
+      }
+    },
+
    
     verifiedAt: {
       type: Date,

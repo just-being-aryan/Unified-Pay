@@ -185,7 +185,7 @@ export const deleteProject = asyncHandler(async (req, res) => {
   return res.json({ success: true, message: "Project deleted successfully" });
 });
 
-//get full project for dashboard
+
 export const getProjectFull = asyncHandler(async (req, res) => {
   const projectId = req.params.id;
   const project = await validateOwnership(projectId, req.user);

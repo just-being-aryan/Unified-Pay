@@ -84,8 +84,29 @@ export default function Payments({
       const response = res.data?.data || res.data;
 
       if (response.paymentMethod === "paytm_js") {
+        const form = document.createElement("form");
+        form.method = "POST";
+        form.action = "https://securegw-stage.paytm.in/theia/processTransaction";
+
+        const fields = {
+          mid: response.mid,
+          orderId: response.orderId,
+          txnToken: response.txnToken,
+        };
+
+        Object.entries(fields).forEach(([key, value]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
         return;
       }
+
 
       if (response.paymentMethod === "razorpay_js") {
         if (!window.Razorpay) {
